@@ -20,21 +20,38 @@ class GameBoard:
     def get_piece_at(self, row, col):
         return self.board[row][col]
 
-    def is_valid_move(self, start_row, start_col, end_row, end_col):
-        piece = self.board[start_row][start_col]
+    def select_piece(self, row, col):
+        piece = self.board[row][col]
+        if piece and piece != 'z':
+            self.selected_piece = (row, col)
+            return True
+        return False
 
+    def unselect_piece(self):
+        self.selected_piece = None
+
+    def is_selected(self, row, col):
+        return self.selected_piece == (row, col)
+
+    def is_valid_move(self, start_row, start_col, end_row, end_col):
+        if self.board[end_row][end_col] != 'z' and self.board[end_row][end_col] is not None:
+            return False
+
+        piece = self.board[start_row][start_col]
+        if piece == 'z' or piece is None:
+            return False
         if piece == 'p':
-            self.check_pawn_move(start_row, start_col, end_row, end_col)
+            return self.check_pawn_move(start_row, start_col, end_row, end_col)
         elif piece == 'r':
-            self.check_rook_move(start_row, start_col, end_row, end_col)
+            return self.check_rook_move(start_row, start_col, end_row, end_col)
         elif piece == 'k':
-            self.check_knight_move(start_row, start_col, end_row, end_col)
+            return self.check_knight_move(start_row, start_col, end_row, end_col)
         elif piece == 'b':
-            self.check_bishop_move(start_row, start_col, end_row, end_col)
+            return self.check_bishop_move(start_row, start_col, end_row, end_col)
         elif piece == 'q':
-            self.check_queen_move(start_row, start_col, end_row, end_col)
+            return self.check_queen_move(start_row, start_col, end_row, end_col)
         elif piece == 'K':
-            self.check_king_move(start_row, start_col, end_row, end_col)
+            return self.check_king_move(start_row, start_col, end_row, end_col)
 
     def move_piece(self, start_row, start_col, end_row, end_col):
         if self.is_valid_move(start_row, start_col, end_row, end_col):
@@ -44,29 +61,74 @@ class GameBoard:
             return True
         return False
 
-    @staticmethod
-    def check_pawn_move(start_row, start_col, end_row, end_col):
-        pass
+    def check_pawn_move(self, start_row, start_col, end_row, end_col):
+        if end_row >= start_row:
+            return False
 
-    @staticmethod
-    def check_rook_move(start_row, start_col, end_row, end_col):
-        pass
+        move_direction = -1
+        # straight move
+        if start_col == end_col:
+            if start_row + move_direction == end_row:
+                return self.board[end_row][end_col] is None
+            elif start_row == len(self.board) - 2 and start_row + (2 * move_direction) == end_row:
+                return (self.board[end_row][end_col] is None and
+                        self.board[start_row + move_direction][end_col] is None)
+            return False
+
+        # diagonal capture
+        elif abs(start_col - end_col) == 1 and start_row + move_direction == end_row:
+            target_piece = self.board[end_row][end_col]
+            return target_piece == 'z'
+        return False
+
+    def check_rook_move(self, start_row, start_col, end_row, end_col):
+        if start_row != end_row and start_col != end_col:
+            return False
+
+        if start_row == end_row:
+            step = 1 if end_col > start_col else -1
+            for col in range(start_col + step, end_col, step):
+                if self.board[start_row][col] is not None:
+                    return False
+        else:
+            step = 1 if end_row > start_row else -1
+            for row in range(start_row + step, end_row, step):
+                if self.board[row][start_col] is not None:
+                    return False
+        return True
 
     @staticmethod
     def check_knight_move(start_row, start_col, end_row, end_col):
-        pass
+        row_diff = abs(end_row - start_row)
+        col_diff = abs(end_col - start_col)
+        return (row_diff == 2 and col_diff == 1) or (row_diff == 1 and col_diff == 2)
 
-    @staticmethod
-    def check_bishop_move(start_row, start_col, end_row, end_col):
-        pass
+    def check_bishop_move(self, start_row, start_col, end_row, end_col):
+        if abs(end_row - start_row) != abs(end_col - start_col):
+            return False
 
-    @staticmethod
-    def check_queen_move(start_row, start_col, end_row, end_col):
-        pass
+        row_step = 1 if end_row > start_row else -1
+        col_step = 1 if end_col > start_col else -1
+
+        current_row = start_row + row_step
+        current_col = start_col + col_step
+
+        while current_row != end_row and current_col != end_col:
+            if self.board[current_row][current_col] is not None:
+                return False
+            current_row += row_step
+            current_col += col_step
+        return True
+
+    def check_queen_move(self, start_row, start_col, end_row, end_col):
+        return (self.check_rook_move(start_row, start_col, end_row, end_col) or
+                self.check_bishop_move(start_row, start_col, end_row, end_col))
 
     @staticmethod
     def check_king_move(start_row, start_col, end_row, end_col):
-        pass
+        row_diff = abs(end_row - start_row)
+        col_diff = abs(end_col - start_col)
+        return row_diff <= 1 and col_diff <= 1
 
 
 class Game:
@@ -76,6 +138,12 @@ class Game:
         pygame.display.set_caption('Pawnbies')
         self.board = GameBoard()
         self.square_size = 100
+        self.light_square = (255, 206, 158)
+        self.dark_square = (209, 139, 71)
+        self.highlight_color = (124, 252, 0, 128)
+        self.highlight_surface = pygame.Surface((self.square_size, self.square_size), pygame.SRCALPHA)
+        pygame.draw.rect(self.highlight_surface, self.highlight_color,
+                         (0, 0, self.square_size, self.square_size))
         self.piece_images = {}
         self.load_piece_images()
 
@@ -91,13 +159,16 @@ class Game:
                 print(f'Could not load image {filename}: {e}')
 
     def draw_board(self):
-        colors = [(255, 206, 158), (209, 139, 71)]
+        colors = [self.light_square, self.dark_square]
         for row in range(8):
             for col in range(8):
                 color = colors[(row + col) % 2]
                 pygame.draw.rect(self.screen, color,
                                  (col * self.square_size, row * self.square_size,
                                   self.square_size, self.square_size))
+                if self.board.is_selected(row, col):
+                    self.screen.blit(self.highlight_surface,
+                                     (col * self.square_size, row * self.square_size))
 
     def draw_pieces(self):
         for row in range(8):
@@ -109,7 +180,6 @@ class Game:
 
     def run(self):
         running = True
-        selected_piece = None
         clock = pygame.time.Clock()
 
         while running:
@@ -121,16 +191,17 @@ class Game:
                     col = event.pos[0] // self.square_size
                     row = event.pos[1] // self.square_size
 
-                    if selected_piece:
-                        start_row, start_col = selected_piece
+                    if self.board.selected_piece:
+                        start_row, start_col = self.board.selected_piece
                         if self.board.move_piece(start_row, start_col, row, col):
-                            selected_piece = None
+                            self.board.unselect_piece()
                         else:
-                            selected_piece = None
+                            if self.board.get_piece_at(row, col) and (row, col) != (start_row, start_col):
+                                self.board.select_piece(row, col)
+                            else:
+                                self.board.unselect_piece()
                     else:
-                        piece = self.board.get_piece_at(row, col)
-                        if piece and piece[0] != 'z':
-                            selected_piece = (row, col)
+                        self.board.select_piece(row, col)
 
             self.draw_board()
             self.draw_pieces()
