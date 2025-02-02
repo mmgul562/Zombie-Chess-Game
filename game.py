@@ -1,21 +1,23 @@
 import os
+import random
 import pygame
 
 
-class GameBoard:
+class Checkmate(Exception):
     def __init__(self):
+        super().__init__('Checkmate! The king was turned.')
+
+
+class GameBoard:
+    def __init__(self, board_y, game_mode):
         self.board = [
-            ['z' for _ in range(8)],
-            [None for _ in range(8)],
-            [None for _ in range(8)],
-            [None for _ in range(8)],
-            [None for _ in range(8)],
-            [None for _ in range(8)],
-            ['p' for _ in range(8)],
-            ['r', 'k', 'b', 'q', 'K', 'b', 'k', 'r']
+            [None for _ in range(8)] for _ in range(board_y - 2)
         ]
+        self.board.append(['p' for _ in range(8)])
+        self.board.append(['r', 'k', 'b', 'q', 'K', 'b', 'k', 'r'])
         self.selected_piece = None
         self.available_moves = []
+        self.game_mode = game_mode
 
     def get_piece_at(self, row, col):
         return self.board[row][col]
@@ -57,9 +59,42 @@ class GameBoard:
         if self.is_valid_move(start_row, start_col, end_row, end_col):
             self.board[end_row][end_col] = self.board[start_row][start_col]
             self.board[start_row][start_col] = None
-            # opponent's move
+            self.move_wave()
             return True
         return False
+
+    def move_wave(self):
+        # when zombies are at the end of the board, they move to the right
+        last_row = len(self.board) - 1
+        for i in reversed(range(7)):
+            if self.board[last_row][i] == 'z':
+                if self.board[last_row][i + 1] is None:
+                    self.board[last_row][i + 1] = 'z'
+                    self.board[last_row][i] = None
+                elif self.board[last_row][i + 1] != 'z':
+                    if self.board[last_row][i + 1] == 'K':
+                        raise Checkmate()
+                    self.board[last_row][i + 1] = 'z'
+
+        for i in reversed(range(last_row)):
+            for j in reversed(range(8)):
+                if self.board[i][j] == 'z':
+                    if self.board[i + 1][j] is None:
+                        self.board[i][j] = None
+                        self.board[i + 1][j] = 'z'
+                    elif self.board[i + 1][j] != 'z':
+                        if self.board[i + 1][j] == 'K':
+                            raise Checkmate()
+                        self.board[i + 1][j] = 'z'
+        n_zombies = random.randint(self.game_mode, self.game_mode + 1)
+        self.create_new_zombies(n_zombies)
+
+    def create_new_zombies(self, n):
+        new_spots = random.sample(range(8), n)
+        for i in new_spots:
+            if self.board[0][i] == 'K':
+                raise Checkmate()
+            self.board[0][i] = 'z'
 
     def check_pawn_move(self, start_row, start_col, end_row, end_col):
         if end_row >= start_row:
@@ -132,11 +167,12 @@ class GameBoard:
 
 
 class Game:
-    def __init__(self):
+    def __init__(self, board_y, game_mode):
         pygame.init()
-        self.screen = pygame.display.set_mode((800, 800))
+        self.board_y = board_y
+        self.screen = pygame.display.set_mode((800, board_y * 100))
         pygame.display.set_caption('Pawnbies')
-        self.board = GameBoard()
+        self.board = GameBoard(board_y, game_mode)
         self.square_size = 100
         self.light_square = (255, 206, 158)
         self.dark_square = (209, 139, 71)
@@ -160,7 +196,7 @@ class Game:
 
     def draw_board(self):
         colors = [self.light_square, self.dark_square]
-        for row in range(8):
+        for row in range(self.board_y):
             for col in range(8):
                 color = colors[(row + col) % 2]
                 pygame.draw.rect(self.screen, color,
@@ -171,7 +207,7 @@ class Game:
                                      (col * self.square_size, row * self.square_size))
 
     def draw_pieces(self):
-        for row in range(8):
+        for row in range(self.board_y):
             for col in range(8):
                 piece = self.board.get_piece_at(row, col)
                 if piece and piece in self.piece_images:
@@ -193,7 +229,12 @@ class Game:
 
                     if self.board.selected_piece:
                         start_row, start_col = self.board.selected_piece
-                        if self.board.move_piece(start_row, start_col, row, col):
+                        piece_moved = None
+                        try:
+                            piece_moved = self.board.move_piece(start_row, start_col, row, col)
+                        except Checkmate:
+                            running = False
+                        if piece_moved:
                             self.board.unselect_piece()
                         else:
                             if self.board.get_piece_at(row, col) and (row, col) != (start_row, start_col):
