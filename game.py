@@ -8,15 +8,16 @@ class Checkmate(Exception):
         super().__init__('Checkmate! The king was turned.')
 
 
-class GameBoard:
+class Gameplay:
     def __init__(self, board_y, game_mode):
         self.board = [
             [None for _ in range(8)] for _ in range(board_y - 2)
         ]
-        self.board.append(['p' for _ in range(8)])
-        self.board.append(['r', 'k', 'b', 'q', 'K', 'b', 'k', 'r'])
+        self.board.append([f'p{i}' for i in range(8)])
+        self.board.append(['r0', 'k0', 'b0', 'q', 'K', 'b1', 'k1', 'r1'])
         self.selected_piece = None
-        self.available_moves = []
+        self.last_moved_piece = None
+        self.board_y = board_y
         self.game_mode = game_mode
 
     def get_piece_at(self, row, col):
@@ -24,7 +25,7 @@ class GameBoard:
 
     def select_piece(self, row, col):
         piece = self.board[row][col]
-        if piece and piece != 'z':
+        if piece and piece != 'z' and piece != self.last_moved_piece:
             self.selected_piece = (row, col)
             return True
         return False
@@ -39,7 +40,7 @@ class GameBoard:
         if self.board[end_row][end_col] != 'z' and self.board[end_row][end_col] is not None:
             return False
 
-        piece = self.board[start_row][start_col]
+        piece = (self.board[start_row][start_col])[0]
         if piece == 'z' or piece is None:
             return False
         if piece == 'p':
@@ -60,34 +61,36 @@ class GameBoard:
             self.board[end_row][end_col] = self.board[start_row][start_col]
             self.board[start_row][start_col] = None
             self.move_wave()
+            self.last_moved_piece = self.board[end_row][end_col]
             return True
         return False
 
     def move_wave(self):
-        # when zombies are at the end of the board, they move to the right
-        last_row = len(self.board) - 1
-        for i in reversed(range(7)):
-            if self.board[last_row][i] == 'z':
-                if self.board[last_row][i + 1] is None:
-                    self.board[last_row][i + 1] = 'z'
-                    self.board[last_row][i] = None
-                elif self.board[last_row][i + 1] != 'z':
-                    if self.board[last_row][i + 1] == 'K':
-                        raise Checkmate()
-                    self.board[last_row][i + 1] = 'z'
-
-        for i in reversed(range(last_row)):
+        for i in reversed(range(self.board_y)):
             for j in reversed(range(8)):
-                if self.board[i][j] == 'z':
-                    if self.board[i + 1][j] is None:
+                if self.board[i][j] != 'z':
+                    continue
+
+                move_to = self.check_zombie_collision(i, j)
+                if move_to is None:
+                    continue
+                elif move_to[0] == 'd':
+                    self.check_checkmate(i + 1, j)
+                    self.board[i + 1][j] = 'z'
+                    if move_to[1] == 'm':
                         self.board[i][j] = None
-                        self.board[i + 1][j] = 'z'
-                    elif self.board[i + 1][j] != 'z':
-                        if self.board[i + 1][j] == 'K':
-                            raise Checkmate()
-                        self.board[i + 1][j] = 'z'
-        n_zombies = random.randint(self.game_mode, self.game_mode + 1)
-        self.create_new_zombies(n_zombies)
+                elif move_to[0] == 'r':
+                    self.check_checkmate(i, j + 1)
+                    self.board[i][j + 1] = 'z'
+                    if move_to[1] == 'm':
+                        self.board[i][j] = None
+                elif move_to[0] == 'l':
+                    self.check_checkmate(i + 1, j - 1)
+                    self.board[i][j - 1] = 'z'
+                    if move_to[1] == 'm':
+                        self.board[i][j] = None
+
+        self.create_new_zombies(random.randint(0, self.game_mode))
 
     def create_new_zombies(self, n):
         new_spots = random.sample(range(8), n)
@@ -95,6 +98,35 @@ class GameBoard:
             if self.board[0][i] == 'K':
                 raise Checkmate()
             self.board[0][i] = 'z'
+
+    def check_zombie_collision(self, i, j):
+        # check down
+        if i + 1 == self.board_y or self.board[i + 1][j] == 'z':
+            # down occupied, go right
+            if j + 1 == 8 or self.board[i][j + 1] == 'z':
+                # right occupied, go left
+                if j - 1 == -1 or self.board[i][j - 1] == 'z':
+                    # all sides occupied
+                    return None
+                else:
+                    # go left (move or capture)
+                    if self.board[i][j - 1] is None:
+                        return 'lm'
+                    return 'lc'
+            else:
+                # go right (move or capture)
+                if self.board[i][j + 1] is None:
+                    return 'rm'
+                return 'rc'
+        else:
+            # go down (move or capture)
+            if self.board[i + 1][j] is None:
+                return 'dm'
+            return 'dc'
+
+    def check_checkmate(self, i, j):
+        if self.board[i][j] == 'K':
+            raise Checkmate()
 
     def check_pawn_move(self, start_row, start_col, end_row, end_col):
         if end_row >= start_row:
@@ -172,7 +204,7 @@ class Game:
         self.board_y = board_y
         self.screen = pygame.display.set_mode((800, board_y * 100))
         pygame.display.set_caption('Pawnbies')
-        self.board = GameBoard(board_y, game_mode)
+        self.gameplay = Gameplay(board_y, game_mode)
         self.square_size = 100
         self.light_square = (255, 206, 158)
         self.dark_square = (209, 139, 71)
@@ -202,16 +234,16 @@ class Game:
                 pygame.draw.rect(self.screen, color,
                                  (col * self.square_size, row * self.square_size,
                                   self.square_size, self.square_size))
-                if self.board.is_selected(row, col):
+                if self.gameplay.is_selected(row, col):
                     self.screen.blit(self.highlight_surface,
                                      (col * self.square_size, row * self.square_size))
 
     def draw_pieces(self):
         for row in range(self.board_y):
             for col in range(8):
-                piece = self.board.get_piece_at(row, col)
-                if piece and piece in self.piece_images:
-                    self.screen.blit(self.piece_images[piece],
+                piece = self.gameplay.get_piece_at(row, col)
+                if piece and piece[0] in self.piece_images:
+                    self.screen.blit(self.piece_images[piece[0]],
                                      (col * self.square_size + 5, row * self.square_size + 5))
 
     def run(self):
@@ -224,25 +256,28 @@ class Game:
                     running = False
 
                 if event.type == pygame.MOUSEBUTTONDOWN:
-                    col = event.pos[0] // self.square_size
-                    row = event.pos[1] // self.square_size
-
-                    if self.board.selected_piece:
-                        start_row, start_col = self.board.selected_piece
-                        piece_moved = None
-                        try:
-                            piece_moved = self.board.move_piece(start_row, start_col, row, col)
-                        except Checkmate:
-                            running = False
-                        if piece_moved:
-                            self.board.unselect_piece()
-                        else:
-                            if self.board.get_piece_at(row, col) and (row, col) != (start_row, start_col):
-                                self.board.select_piece(row, col)
-                            else:
-                                self.board.unselect_piece()
+                    if event.button == pygame.BUTTON_RIGHT:
+                        self.gameplay.unselect_piece()
                     else:
-                        self.board.select_piece(row, col)
+                        col = event.pos[0] // self.square_size
+                        row = event.pos[1] // self.square_size
+
+                        if self.gameplay.selected_piece:
+                            start_row, start_col = self.gameplay.selected_piece
+                            piece_moved = None
+                            try:
+                                piece_moved = self.gameplay.move_piece(start_row, start_col, row, col)
+                            except Checkmate:
+                                running = False
+                            if piece_moved:
+                                self.gameplay.unselect_piece()
+                            else:
+                                if self.gameplay.get_piece_at(row, col) and (row, col) != (start_row, start_col):
+                                    self.gameplay.select_piece(row, col)
+                                else:
+                                    self.gameplay.unselect_piece()
+                        else:
+                            self.gameplay.select_piece(row, col)
 
             self.draw_board()
             self.draw_pieces()
