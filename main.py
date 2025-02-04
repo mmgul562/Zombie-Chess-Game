@@ -1,13 +1,16 @@
-from game import Game
+from game import Game, Checkmate, Win
 
 
 def main():
-    board_y = 12
-    game_modes = {'easy': 1, 'normal': 2, 'hard': 3}
-    game_mode = game_modes['normal']
-    game = Game(board_y, game_mode)
-    game.run()
+    board_y = 10
+    game = Game(board_y, difficulty=1, game_mode='block')
+    try:
+        game.run()
+    except Checkmate:
+        print('Checkmate! The king was turned.')
+    except Win:
+        print("You win!")
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

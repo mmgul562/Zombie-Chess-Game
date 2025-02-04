@@ -5,11 +5,16 @@ import pygame
 
 class Checkmate(Exception):
     def __init__(self):
-        super().__init__('Checkmate! The king was turned.')
+        super().__init__()
+
+
+class Win(Exception):
+    def __init__(self):
+        super().__init__()
 
 
 class Gameplay:
-    def __init__(self, board_y, game_mode):
+    def __init__(self, board_y, difficulty, game_mode):
         self.board = [
             [None for _ in range(8)] for _ in range(board_y - 2)
         ]
@@ -18,6 +23,7 @@ class Gameplay:
         self.selected_piece = None
         self.last_moved_piece = None
         self.board_y = board_y
+        self.difficulty = difficulty
         self.game_mode = game_mode
 
     def get_piece_at(self, row, col):
@@ -85,19 +91,31 @@ class Gameplay:
                     if move_to[1] == 'm':
                         self.board[i][j] = None
                 elif move_to[0] == 'l':
-                    self.check_checkmate(i + 1, j - 1)
+                    self.check_checkmate(i, j - 1)
                     self.board[i][j - 1] = 'z'
                     if move_to[1] == 'm':
                         self.board[i][j] = None
 
-        self.create_new_zombies(random.randint(0, self.game_mode))
+        self.create_new_zombies(random.randint(0, self.difficulty))
 
     def create_new_zombies(self, n):
-        new_spots = random.sample(range(8), n)
-        for i in new_spots:
-            if self.board[0][i] == 'K':
-                raise Checkmate()
-            self.board[0][i] = 'z'
+        if self.game_mode == 'highest_score':
+            new_spots = random.sample(range(8), n)
+            for i in new_spots:
+                if self.board[0][i] == 'K':
+                    raise Checkmate()
+                self.board[0][i] = 'z'
+        elif self.game_mode[:5] == 'block':
+            new_spots = self.get_free_border_spots()
+            if not new_spots:
+                if self.game_mode == 'block':
+                    raise Win()
+                else:
+                    if self.is_board_clear():
+                        raise Win()
+            new_spots = random.sample(new_spots, n)
+            for i in new_spots:
+                self.board[0][i] = 'z'
 
     def check_zombie_collision(self, i, j):
         # check down
@@ -109,17 +127,14 @@ class Gameplay:
                     # all sides occupied
                     return None
                 else:
-                    # go left (move or capture)
                     if self.board[i][j - 1] is None:
                         return 'lm'
                     return 'lc'
             else:
-                # go right (move or capture)
                 if self.board[i][j + 1] is None:
                     return 'rm'
                 return 'rc'
         else:
-            # go down (move or capture)
             if self.board[i + 1][j] is None:
                 return 'dm'
             return 'dc'
@@ -127,6 +142,24 @@ class Gameplay:
     def check_checkmate(self, i, j):
         if self.board[i][j] == 'K':
             raise Checkmate()
+
+    def is_board_clear(self):
+        for i in range(self.board_y):
+            for j in range(8):
+                if self.board[i][j] == 'z':
+                    return False
+        return True
+
+    def get_free_border_spots(self):
+        free_spots = []
+        for i in range(8):
+            if self.board[0][i] is None:
+                free_spots.append(i)
+        return free_spots
+
+    def skip_turn(self):
+        self.last_moved_piece = None
+        self.move_wave()
 
     def check_pawn_move(self, start_row, start_col, end_row, end_col):
         if end_row >= start_row:
@@ -199,12 +232,12 @@ class Gameplay:
 
 
 class Game:
-    def __init__(self, board_y, game_mode):
+    def __init__(self, board_y, difficulty='easy', game_mode='highest_score'):
         pygame.init()
         self.board_y = board_y
         self.screen = pygame.display.set_mode((800, board_y * 100))
         pygame.display.set_caption('Pawnbies')
-        self.gameplay = Gameplay(board_y, game_mode)
+        self.gameplay = Gameplay(board_y, difficulty, game_mode)
         self.square_size = 100
         self.light_square = (255, 206, 158)
         self.dark_square = (209, 139, 71)
@@ -258,6 +291,9 @@ class Game:
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     if event.button == pygame.BUTTON_RIGHT:
                         self.gameplay.unselect_piece()
+                    elif event.button == pygame.BUTTON_MIDDLE:
+                        # skip turn
+                        self.gameplay.skip_turn()
                     else:
                         col = event.pos[0] // self.square_size
                         row = event.pos[1] // self.square_size
@@ -267,7 +303,7 @@ class Game:
                             piece_moved = None
                             try:
                                 piece_moved = self.gameplay.move_piece(start_row, start_col, row, col)
-                            except Checkmate:
+                            except (Checkmate, Win):
                                 running = False
                             if piece_moved:
                                 self.gameplay.unselect_piece()
