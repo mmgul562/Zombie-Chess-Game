@@ -1,6 +1,14 @@
 import os
 import random
+from enum import Enum
 import pygame
+
+
+class GameModes(Enum):
+    SURVIVE_THE_LONGEST = 1
+    CAPTURE_THE_MOST = 2
+    BLOCK_THE_BORDER = 3
+    BLOCK_AND_CLEAR = 4
 
 
 class Checkmate(Exception):
@@ -41,6 +49,14 @@ class Gameplay:
 
     def is_selected(self, row, col):
         return self.selected_piece == (row, col)
+
+    def check_checkmate(self, i, j):
+        if self.board[i][j] == 'K':
+            raise Checkmate()
+
+    def skip_turn(self):
+        self.last_moved_piece = None
+        self.move_wave()
 
     def is_valid_move(self, start_row, start_col, end_row, end_col):
         if self.board[end_row][end_col] != 'z' and self.board[end_row][end_col] is not None:
@@ -99,23 +115,11 @@ class Gameplay:
         self.create_new_zombies(random.randint(0, self.difficulty))
 
     def create_new_zombies(self, n):
-        if self.game_mode == 'highest_score':
-            new_spots = random.sample(range(8), n)
-            for i in new_spots:
-                if self.board[0][i] == 'K':
-                    raise Checkmate()
-                self.board[0][i] = 'z'
-        elif self.game_mode[:5] == 'block':
-            new_spots = self.get_free_border_spots()
-            if not new_spots:
-                if self.game_mode == 'block':
-                    raise Win()
-                else:
-                    if self.is_board_clear():
-                        raise Win()
-            new_spots = random.sample(new_spots, n)
-            for i in new_spots:
-                self.board[0][i] = 'z'
+        new_spots = random.sample(range(8), n)
+        for i in new_spots:
+            if self.board[0][i] == 'K':
+                raise Checkmate()
+            self.board[0][i] = 'z'
 
     def check_zombie_collision(self, i, j):
         # check down
@@ -139,34 +143,11 @@ class Gameplay:
                 return 'dm'
             return 'dc'
 
-    def check_checkmate(self, i, j):
-        if self.board[i][j] == 'K':
-            raise Checkmate()
-
-    def is_board_clear(self):
-        for i in range(self.board_y):
-            for j in range(8):
-                if self.board[i][j] == 'z':
-                    return False
-        return True
-
-    def get_free_border_spots(self):
-        free_spots = []
-        for i in range(8):
-            if self.board[0][i] is None:
-                free_spots.append(i)
-        return free_spots
-
-    def skip_turn(self):
-        self.last_moved_piece = None
-        self.move_wave()
-
     def check_pawn_move(self, start_row, start_col, end_row, end_col):
         if end_row >= start_row:
             return False
 
         move_direction = -1
-        # straight move
         if start_col == end_col:
             if start_row + move_direction == end_row:
                 return self.board[end_row][end_col] is None
@@ -175,7 +156,6 @@ class Gameplay:
                         self.board[start_row + move_direction][end_col] is None)
             return False
 
-        # diagonal capture
         elif abs(start_col - end_col) == 1 and start_row + move_direction == end_row:
             target_piece = self.board[end_row][end_col]
             return target_piece == 'z'
@@ -231,13 +211,126 @@ class Gameplay:
         return row_diff <= 1 and col_diff <= 1
 
 
+class SurviveTheLongest(Gameplay):
+    def __init__(self, board_y, difficulty):
+        super().__init__(board_y, difficulty, GameModes.SURVIVE_THE_LONGEST)
+        self.waves = 0
+
+    def create_new_zombies(self, n):
+        new_spots = random.sample(range(8), n)
+        for i in new_spots:
+            if self.board[0][i] == 'K':
+                raise Checkmate()
+            self.board[0][i] = 'z'
+        self.waves += 1
+
+    def endgame_info(self, won):
+        print(f"Survived waves: {self.waves}")
+
+
+class CaptureTheMost(Gameplay):
+    def __init__(self, board_y, difficulty):
+        super().__init__(board_y, difficulty, GameModes.CAPTURE_THE_MOST)
+        self.captured = 0
+
+    def move_piece(self, start_row, start_col, end_row, end_col):
+        if self.is_valid_move(start_row, start_col, end_row, end_col):
+            if self.board[end_row][end_col] == 'z':
+                self.captured += 1
+            self.board[end_row][end_col] = self.board[start_row][start_col]
+            self.board[start_row][start_col] = None
+            self.move_wave()
+            self.last_moved_piece = self.board[end_row][end_col]
+            return True
+        return False
+
+    def endgame_info(self, won):
+        print(f"Captured zombies: {self.captured}")
+
+
+class BlockTheBorder(Gameplay):
+    def __init__(self, board_y, difficulty):
+        super().__init__(board_y, difficulty, GameModes.BLOCK_THE_BORDER)
+        self.turns_taken = 0
+
+    def get_free_border_spots(self):
+        free_spots = []
+        for i in range(8):
+            if self.board[0][i] is None:
+                free_spots.append(i)
+        return free_spots
+
+    def move_piece(self, start_row, start_col, end_row, end_col):
+        if self.is_valid_move(start_row, start_col, end_row, end_col):
+            self.board[end_row][end_col] = self.board[start_row][start_col]
+            self.board[start_row][start_col] = None
+            self.turns_taken += 1
+            self.move_wave()
+            self.last_moved_piece = self.board[end_row][end_col]
+            return True
+        return False
+
+    def create_new_zombies(self, n):
+        new_spots = self.get_free_border_spots()
+        if not new_spots:
+            raise Win()
+        new_spots = random.sample(new_spots, n)
+        for i in new_spots:
+            self.board[0][i] = 'z'
+
+    def endgame_info(self, won):
+        if won:
+            print(f"You blocked the border in {self.turns_taken} turns")
+
+
+class BlockAndClear(Gameplay):
+    def __init__(self, board_y, difficulty):
+        super().__init__(board_y, difficulty, GameModes.BLOCK_THE_BORDER)
+        self.turns_taken = 0
+
+    def get_free_border_spots(self):
+        free_spots = []
+        for i in range(8):
+            if self.board[0][i] is None:
+                free_spots.append(i)
+        return free_spots
+
+    def is_board_clear(self):
+        for i in range(self.board_y):
+            for j in range(8):
+                if self.board[i][j] == 'z':
+                    return False
+        return True
+
+    def move_piece(self, start_row, start_col, end_row, end_col):
+        if self.is_valid_move(start_row, start_col, end_row, end_col):
+            self.board[end_row][end_col] = self.board[start_row][start_col]
+            self.board[start_row][start_col] = None
+            self.turns_taken += 1
+            self.move_wave()
+            self.last_moved_piece = self.board[end_row][end_col]
+            return True
+        return False
+
+    def create_new_zombies(self, n):
+        new_spots = self.get_free_border_spots()
+        if not new_spots and self.is_board_clear():
+            raise Win()
+        new_spots = random.sample(new_spots, n)
+        for i in new_spots:
+            self.board[0][i] = 'z'
+
+    def endgame_info(self, won):
+        if won:
+            print(f"You cleared the board and blocked the border in {self.turns_taken} turns")
+
+
 class Game:
-    def __init__(self, board_y, difficulty='easy', game_mode='highest_score'):
+    def __init__(self, board_y, difficulty=1, game_mode=GameModes.SURVIVE_THE_LONGEST):
         pygame.init()
         self.board_y = board_y
         self.screen = pygame.display.set_mode((800, board_y * 100))
         pygame.display.set_caption('Pawnbies')
-        self.gameplay = Gameplay(board_y, difficulty, game_mode)
         self.square_size = 100
         self.light_square = (255, 206, 158)
         self.dark_square = (209, 139, 71)
@@ -247,6 +340,15 @@ class Game:
                          (0, 0, self.square_size, self.square_size))
         self.piece_images = {}
         self.load_piece_images()
+
+        if game_mode == GameModes.SURVIVE_THE_LONGEST:
+            self.gameplay = SurviveTheLongest(board_y, difficulty)
+        elif game_mode == GameModes.CAPTURE_THE_MOST:
+            self.gameplay = CaptureTheMost(board_y, difficulty)
+        elif game_mode == GameModes.BLOCK_THE_BORDER:
+            self.gameplay = BlockTheBorder(board_y, difficulty)
+        elif game_mode == GameModes.BLOCK_AND_CLEAR:
+            self.gameplay = BlockAndClear(board_y, difficulty)
 
     def load_piece_images(self):
         pieces = {'pawn', 'rook', 'knight', 'bishop', 'queen', 'King', 'zombie'}
@@ -303,8 +405,12 @@ class Game:
                             piece_moved = None
                             try:
                                 piece_moved = self.gameplay.move_piece(start_row, start_col, row, col)
-                            except (Checkmate, Win):
+                            except Checkmate:
                                 running = False
+                                self.gameplay.endgame_info(False)
+                            except Win:
+                                running = False
+                                self.gameplay.endgame_info(True)
                             if piece_moved:
                                 self.gameplay.unselect_piece()
                             else:

@@ -1,9 +1,8 @@
-from game import Game, Checkmate, Win
+from game.game import Game, GameModes, Checkmate, Win
 
 
 def main():
-    board_y = 10
-    game = Game(board_y, difficulty=1, game_mode='block')
+    game = Game(board_y=10, difficulty=1, game_mode=GameModes.BLOCK_THE_BORDER)
     try:
         game.run()
     except Checkmate:
