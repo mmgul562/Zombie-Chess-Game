@@ -1,7 +1,14 @@
 import os
 import random
 from enum import Enum
+
 import pygame
+
+from game.menu import Menu
+
+
+# TODO: improve menu look
+# TODO: improve menu (game mode selection, difficulty etc)
 
 
 class GameModes(Enum):
@@ -11,18 +18,15 @@ class GameModes(Enum):
     BLOCK_AND_CLEAR = 4
 
 
-class Checkmate(Exception):
-    def __init__(self):
-        super().__init__()
-
-
-class Win(Exception):
-    def __init__(self):
-        super().__init__()
+class TurnResult(Enum):
+    OK = 1
+    WRONG = 2
+    WIN = 3
+    CHECKMATE = 4
 
 
 class Gameplay:
-    def __init__(self, board_y, difficulty, game_mode):
+    def __init__(self, board_y, difficulty):
         self.board = [
             [None for _ in range(8)] for _ in range(board_y - 2)
         ]
@@ -32,7 +36,6 @@ class Gameplay:
         self.last_moved_piece = None
         self.board_y = board_y
         self.difficulty = difficulty
-        self.game_mode = game_mode
 
     def get_piece_at(self, row, col):
         return self.board[row][col]
@@ -50,21 +53,24 @@ class Gameplay:
     def is_selected(self, row, col):
         return self.selected_piece == (row, col)
 
-    def check_checkmate(self, i, j):
+    def is_checkmate(self, i, j):
         if self.board[i][j] == 'K':
-            raise Checkmate()
+            return True
 
     def skip_turn(self):
         self.last_moved_piece = None
-        self.move_wave()
+        if self.move_wave() == TurnResult.CHECKMATE:
+            return TurnResult.CHECKMATE
+        return TurnResult.OK
 
     def is_valid_move(self, start_row, start_col, end_row, end_col):
         if self.board[end_row][end_col] != 'z' and self.board[end_row][end_col] is not None:
             return False
 
-        piece = (self.board[start_row][start_col])[0]
-        if piece == 'z' or piece is None:
+        piece = self.board[start_row][start_col]
+        if piece is None or piece == 'z':
             return False
+        piece = piece[0]
         if piece == 'p':
             return self.check_pawn_move(start_row, start_col, end_row, end_col)
         elif piece == 'r':
@@ -82,10 +88,11 @@ class Gameplay:
         if self.is_valid_move(start_row, start_col, end_row, end_col):
             self.board[end_row][end_col] = self.board[start_row][start_col]
             self.board[start_row][start_col] = None
-            self.move_wave()
+            if self.move_wave() == TurnResult.CHECKMATE:
+                return TurnResult.CHECKMATE
             self.last_moved_piece = self.board[end_row][end_col]
-            return True
-        return False
+            return TurnResult.OK
+        return TurnResult.WRONG
 
     def move_wave(self):
         for i in reversed(range(self.board_y)):
@@ -93,33 +100,36 @@ class Gameplay:
                 if self.board[i][j] != 'z':
                     continue
 
-                move_to = self.check_zombie_collision(i, j)
-                if move_to is None:
+                move = self.check_zombie_collision(i, j)
+                if move is None:
                     continue
-                elif move_to[0] == 'd':
-                    self.check_checkmate(i + 1, j)
+                elif move[0] == 'd':
+                    if self.is_checkmate(i + 1, j):
+                        return TurnResult.CHECKMATE
                     self.board[i + 1][j] = 'z'
-                    if move_to[1] == 'm':
+                    if move[1] == 'm':
                         self.board[i][j] = None
-                elif move_to[0] == 'r':
-                    self.check_checkmate(i, j + 1)
+                elif move[0] == 'r':
+                    if self.is_checkmate(i + 1, j):
+                        return TurnResult.CHECKMATE
                     self.board[i][j + 1] = 'z'
-                    if move_to[1] == 'm':
+                    if move[1] == 'm':
                         self.board[i][j] = None
-                elif move_to[0] == 'l':
-                    self.check_checkmate(i, j - 1)
+                elif move[0] == 'l':
+                    if self.is_checkmate(i + 1, j):
+                        return TurnResult.CHECKMATE
                     self.board[i][j - 1] = 'z'
-                    if move_to[1] == 'm':
+                    if move[1] == 'm':
                         self.board[i][j] = None
-
-        self.create_new_zombies(random.randint(0, self.difficulty))
+        return self.create_new_zombies(random.randint(0, self.difficulty))
 
     def create_new_zombies(self, n):
         new_spots = random.sample(range(8), n)
         for i in new_spots:
             if self.board[0][i] == 'K':
-                raise Checkmate()
+                return TurnResult.CHECKMATE
             self.board[0][i] = 'z'
+        return TurnResult.OK
 
     def check_zombie_collision(self, i, j):
         # check down
@@ -213,24 +223,25 @@ class Gameplay:
 
 class SurviveTheLongest(Gameplay):
     def __init__(self, board_y, difficulty):
-        super().__init__(board_y, difficulty, GameModes.SURVIVE_THE_LONGEST)
+        super().__init__(board_y, difficulty)
         self.waves = 0
 
     def create_new_zombies(self, n):
         new_spots = random.sample(range(8), n)
         for i in new_spots:
             if self.board[0][i] == 'K':
-                raise Checkmate()
+                return TurnResult.CHECKMATE
             self.board[0][i] = 'z'
         self.waves += 1
+        return TurnResult.OK
 
     def endgame_info(self, won):
-        print(f"Survived waves: {self.waves}")
+        return f"Survived waves: {self.waves}"
 
 
 class CaptureTheMost(Gameplay):
     def __init__(self, board_y, difficulty):
-        super().__init__(board_y, difficulty, GameModes.CAPTURE_THE_MOST)
+        super().__init__(board_y, difficulty)
         self.captured = 0
 
     def move_piece(self, start_row, start_col, end_row, end_col):
@@ -239,19 +250,21 @@ class CaptureTheMost(Gameplay):
                 self.captured += 1
             self.board[end_row][end_col] = self.board[start_row][start_col]
             self.board[start_row][start_col] = None
-            self.move_wave()
+            if self.move_wave() == TurnResult.CHECKMATE:
+                return TurnResult.CHECKMATE
             self.last_moved_piece = self.board[end_row][end_col]
-            return True
-        return False
+            return TurnResult.OK
+        return TurnResult.WRONG
 
     def endgame_info(self, won):
-        print(f"Captured zombies: {self.captured}")
+        return f"Captured zombies: {self.captured}"
 
 
 class BlockTheBorder(Gameplay):
     def __init__(self, board_y, difficulty):
-        super().__init__(board_y, difficulty, GameModes.BLOCK_THE_BORDER)
+        super().__init__(board_y, difficulty)
         self.turns_taken = 0
+        self.pieces_left = 16
 
     def get_free_border_spots(self):
         free_spots = []
@@ -265,35 +278,70 @@ class BlockTheBorder(Gameplay):
             self.board[end_row][end_col] = self.board[start_row][start_col]
             self.board[start_row][start_col] = None
             self.turns_taken += 1
-            self.move_wave()
+            result = self.move_wave()
+            if result == TurnResult.CHECKMATE:
+                return TurnResult.CHECKMATE
+            elif result == TurnResult.WIN:
+                return TurnResult.WIN
             self.last_moved_piece = self.board[end_row][end_col]
-            return True
-        return False
+            return TurnResult.OK
+        return TurnResult.WRONG
+
+    def move_wave(self):
+        for i in reversed(range(self.board_y)):
+            for j in reversed(range(8)):
+                if self.board[i][j] != 'z':
+                    continue
+
+                move = self.check_zombie_collision(i, j)
+                if move is None:
+                    continue
+                elif move[0] == 'd':
+                    if self.is_checkmate(i + 1, j):
+                        return TurnResult.CHECKMATE
+                    self.board[i + 1][j] = 'z'
+                    if move[1] == 'm':
+                        self.board[i][j] = None
+                    else:
+                        self.pieces_left -= 1
+                elif move[0] == 'r':
+                    if self.is_checkmate(i, j + 1):
+                        return TurnResult.CHECKMATE
+                    self.board[i][j + 1] = 'z'
+                    if move[1] == 'm':
+                        self.board[i][j] = None
+                    else:
+                        self.pieces_left -= 1
+                elif move[0] == 'l':
+                    if self.is_checkmate(i, j - 1):
+                        return TurnResult.CHECKMATE
+                    self.board[i][j - 1] = 'z'
+                    if move[1] == 'm':
+                        self.board[i][j] = None
+                    else:
+                        self.pieces_left -= 1
+        if self.pieces_left < 8:
+            return TurnResult.CHECKMATE
+        return self.create_new_zombies(random.randint(0, self.difficulty))
 
     def create_new_zombies(self, n):
         new_spots = self.get_free_border_spots()
         if not new_spots:
-            raise Win()
+            return TurnResult.WIN
         new_spots = random.sample(new_spots, n)
         for i in new_spots:
             self.board[0][i] = 'z'
+        return TurnResult.OK
 
     def endgame_info(self, won):
         if won:
-            print(f"You blocked the border in {self.turns_taken} turns")
+            return f"You blocked the border in {self.turns_taken} turns"
+        return "You didn't manage to block the border"
 
 
-class BlockAndClear(Gameplay):
+class BlockAndClear(BlockTheBorder):
     def __init__(self, board_y, difficulty):
-        super().__init__(board_y, difficulty, GameModes.BLOCK_THE_BORDER)
-        self.turns_taken = 0
-
-    def get_free_border_spots(self):
-        free_spots = []
-        for i in range(8):
-            if self.board[0][i] is None:
-                free_spots.append(i)
-        return free_spots
+        super().__init__(board_y, difficulty)
 
     def is_board_clear(self):
         for i in range(self.board_y):
@@ -302,53 +350,33 @@ class BlockAndClear(Gameplay):
                     return False
         return True
 
-    def move_piece(self, start_row, start_col, end_row, end_col):
-        if self.is_valid_move(start_row, start_col, end_row, end_col):
-            self.board[end_row][end_col] = self.board[start_row][start_col]
-            self.board[start_row][start_col] = None
-            self.turns_taken += 1
-            self.move_wave()
-            self.last_moved_piece = self.board[end_row][end_col]
-            return True
-        return False
-
     def create_new_zombies(self, n):
         new_spots = self.get_free_border_spots()
         if not new_spots and self.is_board_clear():
-            raise Win()
+            return TurnResult.WIN
         new_spots = random.sample(new_spots, n)
         for i in new_spots:
             self.board[0][i] = 'z'
+        return TurnResult.OK
 
     def endgame_info(self, won):
         if won:
-            print(f"You cleared the board and blocked the border in {self.turns_taken} turns")
+            return f"You cleared the board and blocked the border in {self.turns_taken} turns"
+        return "You didn't manage to block the border and clear the board"
 
 
-class Game:
-    def __init__(self, board_y, difficulty=1, game_mode=GameModes.SURVIVE_THE_LONGEST):
-        pygame.init()
+class DisplaySettings:
+    def __init__(self, board_y):
         self.board_y = board_y
-        self.screen = pygame.display.set_mode((800, board_y * 100))
-        pygame.display.set_caption('Pawnbies')
         self.square_size = 100
-        self.light_square = (255, 206, 158)
-        self.dark_square = (209, 139, 71)
-        self.highlight_color = (124, 252, 0, 128)
+        self.light_square = (255, 215, 175)
+        self.dark_square = (205, 132, 55)
+        self.highlight_color = (75, 200, 70, 128)
         self.highlight_surface = pygame.Surface((self.square_size, self.square_size), pygame.SRCALPHA)
         pygame.draw.rect(self.highlight_surface, self.highlight_color,
                          (0, 0, self.square_size, self.square_size))
         self.piece_images = {}
         self.load_piece_images()
-
-        if game_mode == GameModes.SURVIVE_THE_LONGEST:
-            self.gameplay = SurviveTheLongest(board_y, difficulty)
-        elif game_mode == GameModes.CAPTURE_THE_MOST:
-            self.gameplay = CaptureTheMost(board_y, difficulty)
-        elif game_mode == GameModes.BLOCK_THE_BORDER:
-            self.gameplay = BlockTheBorder(board_y, difficulty)
-        elif game_mode == GameModes.BLOCK_AND_CLEAR:
-            self.gameplay = BlockAndClear(board_y, difficulty)
 
     def load_piece_images(self):
         pieces = {'pawn', 'rook', 'knight', 'bishop', 'queen', 'King', 'zombie'}
@@ -361,57 +389,98 @@ class Game:
             except Exception as e:
                 print(f'Could not load image {filename}: {e}')
 
+
+class Game:
+    def __init__(self, board_y, difficulty, game_mode):
+        pygame.init()
+        self.won = False
+        self.display_settings = DisplaySettings(board_y)
+        self.gameplay = self.init_game_mode(board_y, difficulty, game_mode)
+        self.screen = pygame.display.set_mode((800, board_y * 100))
+        self.menu = Menu(self.screen, 800, board_y * 100)
+        pygame.display.set_caption('Pawnbies')
+
+        self.MENU = 'menu'
+        self.PLAYING = 'playing'
+        self.GAME_OVER = 'game_over'
+        self.current_state = self.MENU
+
+    @staticmethod
+    def init_game_mode(board_y, difficulty, game_mode):
+        if game_mode == GameModes.SURVIVE_THE_LONGEST:
+            return SurviveTheLongest(board_y, difficulty)
+        elif game_mode == GameModes.CAPTURE_THE_MOST:
+            return CaptureTheMost(board_y, difficulty)
+        elif game_mode == GameModes.BLOCK_THE_BORDER:
+            return BlockTheBorder(board_y, difficulty)
+        elif game_mode == GameModes.BLOCK_AND_CLEAR:
+            return BlockAndClear(board_y, difficulty)
+
     def draw_board(self):
-        colors = [self.light_square, self.dark_square]
-        for row in range(self.board_y):
+        colors = [self.display_settings.light_square, self.display_settings.dark_square]
+        for row in range(self.display_settings.board_y):
             for col in range(8):
                 color = colors[(row + col) % 2]
                 pygame.draw.rect(self.screen, color,
-                                 (col * self.square_size, row * self.square_size,
-                                  self.square_size, self.square_size))
+                                 (col * self.display_settings.square_size, row * self.display_settings.square_size,
+                                  self.display_settings.square_size, self.display_settings.square_size))
                 if self.gameplay.is_selected(row, col):
-                    self.screen.blit(self.highlight_surface,
-                                     (col * self.square_size, row * self.square_size))
+                    self.screen.blit(self.display_settings.highlight_surface,
+                                     (col * self.display_settings.square_size, row * self.display_settings.square_size))
 
     def draw_pieces(self):
-        for row in range(self.board_y):
+        for row in range(self.display_settings.board_y):
             for col in range(8):
                 piece = self.gameplay.get_piece_at(row, col)
-                if piece and piece[0] in self.piece_images:
-                    self.screen.blit(self.piece_images[piece[0]],
-                                     (col * self.square_size + 5, row * self.square_size + 5))
+                if piece and piece[0] in self.display_settings.piece_images:
+                    self.screen.blit(self.display_settings.piece_images[piece[0]],
+                                     (col * self.display_settings.square_size + 5,
+                                      row * self.display_settings.square_size + 5))
 
-    def run(self):
-        running = True
-        clock = pygame.time.Clock()
+    def handle_events(self):
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                return False
 
-        while running:
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    running = False
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                mouse_pos = pygame.mouse.get_pos()
 
-                if event.type == pygame.MOUSEBUTTONDOWN:
+                if self.current_state == self.MENU:
+                    play_btn, quit_btn = self.menu.main_menu()
+                    if play_btn.collidepoint(mouse_pos):
+                        self.current_state = self.PLAYING
+                    elif quit_btn.collidepoint(mouse_pos):
+                        return False
+
+                elif self.current_state == self.GAME_OVER:
+                    restart_btn, menu_btn = self.menu.game_over_menu(self.gameplay.endgame_info(self.won))
+                    if restart_btn.collidepoint(mouse_pos):
+                        self.init_game_mode(self.gameplay.board_y, self.gameplay.difficulty, GameModes.BLOCK_THE_BORDER)
+                        self.current_state = self.PLAYING
+                    elif menu_btn.collidepoint(mouse_pos):
+                        self.current_state = self.MENU
+
+                elif self.current_state == self.PLAYING:
                     if event.button == pygame.BUTTON_RIGHT:
                         self.gameplay.unselect_piece()
                     elif event.button == pygame.BUTTON_MIDDLE:
-                        # skip turn
-                        self.gameplay.skip_turn()
+                        if self.gameplay.skip_turn() == TurnResult.CHECKMATE:
+                            self.current_state = self.GAME_OVER
+                            self.won = False
                     else:
-                        col = event.pos[0] // self.square_size
-                        row = event.pos[1] // self.square_size
+                        col = event.pos[0] // self.display_settings.square_size
+                        row = event.pos[1] // self.display_settings.square_size
 
                         if self.gameplay.selected_piece:
                             start_row, start_col = self.gameplay.selected_piece
-                            piece_moved = None
-                            try:
-                                piece_moved = self.gameplay.move_piece(start_row, start_col, row, col)
-                            except Checkmate:
-                                running = False
-                                self.gameplay.endgame_info(False)
-                            except Win:
-                                running = False
-                                self.gameplay.endgame_info(True)
-                            if piece_moved:
+                            turn_result = self.gameplay.move_piece(start_row, start_col, row, col)
+                            if turn_result == TurnResult.CHECKMATE:
+                                self.current_state = self.GAME_OVER
+                                self.won = False
+                            elif turn_result == TurnResult.WIN:
+                                self.current_state = self.GAME_OVER
+                                self.won = True
+                            elif turn_result == TurnResult.OK:
                                 self.gameplay.unselect_piece()
                             else:
                                 if self.gameplay.get_piece_at(row, col) and (row, col) != (start_row, start_col):
@@ -420,10 +489,24 @@ class Game:
                                     self.gameplay.unselect_piece()
                         else:
                             self.gameplay.select_piece(row, col)
+        return True
 
-            self.draw_board()
-            self.draw_pieces()
-            clock.tick(60)
+    def run(self):
+        running = True
+        clock = pygame.time.Clock()
+
+        while running:
+            running = self.handle_events()
+
+            if self.current_state == self.MENU:
+                self.menu.main_menu()
+            elif self.current_state == self.PLAYING:
+                self.draw_board()
+                self.draw_pieces()
+            elif self.current_state == self.GAME_OVER:
+                self.menu.game_over_menu(self.gameplay.endgame_info(self.won))
+
             pygame.display.flip()
+            clock.tick(60)
 
         pygame.quit()
