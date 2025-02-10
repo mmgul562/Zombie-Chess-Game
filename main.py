@@ -1,8 +1,8 @@
-from game.game import Game, GameModes
+from game.game import Game, GameModes, Difficulties
 
 
 def main():
-    game = Game(board_y=10, difficulty=1, game_mode=GameModes.BLOCK_THE_BORDER)
+    game = Game(board_y=10, difficulty=Difficulties.NORMAL, game_mode=GameModes.SURVIVE_THE_LONGEST)
     game.run()
 
 
