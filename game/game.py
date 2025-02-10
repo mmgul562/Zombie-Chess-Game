@@ -50,7 +50,7 @@ class DisplaySettings:
         else:
             self.board_y = board_y
         self.square_size = min(screen_height // board_y, screen_width // 8)
-        self.board_x = 8
+        self.center_offset_x = ((self.board_x * self.square_size) // 2) - (self.screen_width // 2)
         self.load_piece_images()
 
 
@@ -66,9 +66,11 @@ class Game:
         self.display_settings = DisplaySettings(screen_width, screen_height, board_y)
         self.screen = pygame.display.set_mode((screen_width, screen_height))
         self.menu = Menu(self.screen, screen_width, screen_height)
+        self._help_section = None
         pygame.display.set_caption('Pawnbies')
 
         self.MENU = 'menu'
+        self.HELP_MENU = 'help_menu'
         self.SETTINGS = 'settings'
         self.PLAYING = 'playing'
         self.GAME_OVER = 'game_over'
@@ -109,108 +111,128 @@ class Game:
                                      ((col * self.display_settings.square_size + 5) - self.display_settings.center_offset_x,
                                       row * self.display_settings.square_size + 5))
 
-    def handle_menu_state(self, mouse_pos):
-        play_btn, quit_btn = self.menu.main_menu()
-        if play_btn.collidepoint(mouse_pos):
-            self.current_state = self.SETTINGS
-        elif quit_btn.collidepoint(mouse_pos):
-            return False
+    def handle_menu_state(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
+            mouse_pos = pygame.mouse.get_pos()
+            play_btn, help_btn, quit_btn = self.menu.main_menu()
+            if play_btn.collidepoint(mouse_pos):
+                self.current_state = self.SETTINGS
+            elif help_btn.collidepoint(mouse_pos):
+                self.current_state = self.HELP_MENU
+            elif quit_btn.collidepoint(mouse_pos):
+                return False
         return True
 
-    def handle_settings_state(self, mouse_pos):
-        buttons = self.menu.game_settings_menu(
-            self.gameplay.game_mode,
-            self.gameplay.difficulty,
-            self.gameplay.board_y
-        )
-        game_mode_btn = buttons[0]
-        difficulty_btn = buttons[1]
-        add_board_y_btn = buttons[2]
-        rm_board_y_btn = buttons[3]
-        play_btn = buttons[4]
-        back_btn = buttons[5]
+    def handle_help_menu_state(self, event):
+        if self._help_section is None:
+            self._help_section = self.menu.help_menu()
 
-        if game_mode_btn.collidepoint(mouse_pos):
-            self.gameplay.game_mode = self.gameplay.game_mode.switch()
-        elif difficulty_btn.collidepoint(mouse_pos):
-            self.gameplay.difficulty = self.gameplay.difficulty.switch()
-        elif add_board_y_btn.collidepoint(mouse_pos):
-            self.gameplay.board_y = min(self.gameplay.board_y + 1, 14)
-            self.display_settings.reset(board_y=self.gameplay.board_y)
-        elif rm_board_y_btn.collidepoint(mouse_pos):
-            self.gameplay.board_y = max(self.gameplay.board_y - 1, 6)
-            self.display_settings.reset(board_y=self.gameplay.board_y)
-        elif play_btn.collidepoint(mouse_pos):
-            self.gameplay = self.init_game_mode(self.gameplay.board_y,
-                                                self.gameplay.difficulty,
-                                                self.gameplay.game_mode)
-            self.current_state = self.PLAYING
-        elif back_btn.collidepoint(mouse_pos):
-            self.current_state = self.MENU
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
+            mouse_pos = pygame.mouse.get_pos()
+            back_btn = self._help_section[1]
+            if back_btn.collidepoint(mouse_pos):
+                self.current_state = self.MENU
+                self._help_section = None
 
-    def handle_game_over_state(self, mouse_pos):
-        restart_btn, menu_btn = self.menu.game_over_menu(self.gameplay.endgame_info(self.won))
-        if restart_btn.collidepoint(mouse_pos):
-            self.current_state = self.SETTINGS
-        elif menu_btn.collidepoint(mouse_pos):
-            self.current_state = self.MENU
+        if event.type == pygame.MOUSEWHEEL:
+            help_section = self._help_section[0]
+            help_section.handle_event(event)
+
+    def handle_settings_state(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
+            mouse_pos = pygame.mouse.get_pos()
+            buttons = self.menu.game_settings_menu(
+                self.gameplay.game_mode,
+                self.gameplay.difficulty,
+                self.gameplay.board_y
+            )
+            game_mode_btn = buttons[0]
+            difficulty_btn = buttons[1]
+            add_board_y_btn = buttons[2]
+            rm_board_y_btn = buttons[3]
+            play_btn = buttons[4]
+            back_btn = buttons[5]
+
+            if game_mode_btn.collidepoint(mouse_pos):
+                self.gameplay.game_mode = self.gameplay.game_mode.switch()
+            elif difficulty_btn.collidepoint(mouse_pos):
+                self.gameplay.difficulty = self.gameplay.difficulty.switch()
+            elif add_board_y_btn.collidepoint(mouse_pos):
+                self.gameplay.board_y = min(self.gameplay.board_y + 1, 14)
+                self.display_settings.reset(board_y=self.gameplay.board_y)
+            elif rm_board_y_btn.collidepoint(mouse_pos):
+                self.gameplay.board_y = max(self.gameplay.board_y - 1, 6)
+                self.display_settings.reset(board_y=self.gameplay.board_y)
+            elif play_btn.collidepoint(mouse_pos):
+                self.gameplay = self.init_game_mode(self.gameplay.board_y,
+                                                    self.gameplay.difficulty,
+                                                    self.gameplay.game_mode)
+                self.current_state = self.PLAYING
+            elif back_btn.collidepoint(mouse_pos):
+                self.current_state = self.MENU
+
+    def handle_game_over_state(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
+            mouse_pos = pygame.mouse.get_pos()
+            restart_btn, menu_btn = self.menu.game_over_menu(self.gameplay.endgame_info(self.won))
+            if restart_btn.collidepoint(mouse_pos):
+                self.current_state = self.SETTINGS
+            elif menu_btn.collidepoint(mouse_pos):
+                self.current_state = self.MENU
 
     def handle_playing_state(self, event):
-        if event.button == pygame.BUTTON_RIGHT:
-            self.gameplay.unselect_piece()
-        elif event.button == pygame.BUTTON_MIDDLE:
-            if self.gameplay.skip_turn() == TurnResult.CHECKMATE:
-                self.current_state = self.GAME_OVER
-                self.won = False
-        else:
-            col = (event.pos[0] + self.display_settings.center_offset_x) // self.display_settings.square_size
-            row = event.pos[1] // self.display_settings.square_size
-            if col < 0 or row < 0 or col >= self.display_settings.board_x or row >= self.display_settings.board_y:
-                return
-
-            if self.gameplay.selected_piece:
-                start_row, start_col = self.gameplay.selected_piece
-                turn_result = self.gameplay.move_piece(start_row, start_col, row, col)
-                if turn_result == TurnResult.CHECKMATE:
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if event.button == pygame.BUTTON_RIGHT:
+                self.gameplay.unselect_piece()
+            elif event.button == pygame.BUTTON_MIDDLE:
+                if self.gameplay.skip_turn() == TurnResult.CHECKMATE:
                     self.current_state = self.GAME_OVER
                     self.won = False
-                elif turn_result == TurnResult.WIN:
-                    self.current_state = self.GAME_OVER
-                    self.won = True
-                elif turn_result == TurnResult.OK:
-                    self.gameplay.unselect_piece()
-                else:
-                    if self.gameplay.get_piece_at(row, col) and (row, col) != (start_row, start_col):
-                        self.gameplay.select_piece(row, col)
-                    else:
-                        self.gameplay.unselect_piece()
             else:
-                self.gameplay.select_piece(row, col)
+                col = (event.pos[0] + self.display_settings.center_offset_x) // self.display_settings.square_size
+                row = event.pos[1] // self.display_settings.square_size
+                if col < 0 or row < 0 or col >= self.display_settings.board_x or row >= self.display_settings.board_y:
+                    return
+
+                if self.gameplay.selected_piece:
+                    start_row, start_col = self.gameplay.selected_piece
+                    turn_result = self.gameplay.move_piece(start_row, start_col, row, col)
+                    if turn_result == TurnResult.CHECKMATE:
+                        self.current_state = self.GAME_OVER
+                        self.won = False
+                    elif turn_result == TurnResult.WIN:
+                        self.current_state = self.GAME_OVER
+                        self.won = True
+                    elif turn_result == TurnResult.OK:
+                        self.gameplay.unselect_piece()
+                    else:
+                        if self.gameplay.get_piece_at(row, col) and (row, col) != (start_row, start_col):
+                            self.gameplay.select_piece(row, col)
+                        else:
+                            self.gameplay.unselect_piece()
+                else:
+                    self.gameplay.select_piece(row, col)
 
     def handle_events(self):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
 
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                mouse_pos = pygame.mouse.get_pos()
-
-                if self.current_state == self.MENU:
-                    if not self.handle_menu_state(mouse_pos):
-                        return False
-
-                elif self.current_state == self.SETTINGS:
-                    self.handle_settings_state(mouse_pos)
-
-                elif self.current_state == self.GAME_OVER:
-                    self.handle_game_over_state(mouse_pos)
-
-                elif self.current_state == self.PLAYING:
-                    self.handle_playing_state(event)
-
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.current_state = self.MENU
+
+            if self.current_state == self.MENU:
+                if not self.handle_menu_state(event):
+                    return False
+            elif self.current_state == self.HELP_MENU:
+                self.handle_help_menu_state(event)
+            elif self.current_state == self.SETTINGS:
+                self.handle_settings_state(event)
+            elif self.current_state == self.GAME_OVER:
+                self.handle_game_over_state(event)
+            elif self.current_state == self.PLAYING:
+                self.handle_playing_state(event)
         return True
 
     def run(self):
@@ -222,6 +244,10 @@ class Game:
 
             if self.current_state == self.MENU:
                 self.menu.main_menu()
+            elif self.current_state == self.HELP_MENU:
+                if self._help_section is not None:
+                    help_section = self._help_section[0]
+                    help_section.draw()
             elif self.current_state == self.SETTINGS:
                 self.menu.game_settings_menu(self.gameplay.game_mode, self.gameplay.difficulty, self.gameplay.board_y)
             elif self.current_state == self.PLAYING:
