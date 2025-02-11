@@ -96,10 +96,12 @@ class ScrollableSection:
 
 
 class Menu:
-    def __init__(self, screen, screen_width, screen_height):
+    def __init__(self, screen, screen_width, screen_height, piece_images):
         self.screen = screen
         self.screen_width = screen_width
         self.screen_height = screen_height
+
+        self.piece_images = piece_images
 
         self.LIGHT_BROWN = (255, 248, 220)
         self.DARK_BROWN = (193, 120, 50)
@@ -204,6 +206,55 @@ class Menu:
         self.screen.blit(text_surface, text_rect)
 
         return button_rect
+
+    def pawn_promotion_menu(self):
+        popup_width = int(self.screen_width * 0.3)
+        popup_height = int(self.screen_height * 0.15)
+        popup_x = (self.screen_width - popup_width) // 2
+        popup_y = (self.screen_height - popup_height) // 2
+
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 128))
+        self.screen.blit(overlay, (0, 0))
+
+        pygame.draw.rect(self.screen, self.LIGHT_BROWN,
+                         (popup_x, popup_y, popup_width, popup_height))
+        pygame.draw.rect(self.screen, self.DARK_BROWN,
+                         (popup_x, popup_y, popup_width, popup_height), 2)
+
+        piece_size = min(popup_height - 60, popup_width // 4 - 20)
+        pieces = ['queen', 'rook', 'bishop', 'knight']
+        piece_y = popup_y + (popup_height - piece_size) // 2
+        spacing = (popup_width - (len(pieces) * piece_size)) // (len(pieces) + 1)
+
+        piece_areas = {}
+        for i, piece in enumerate(pieces):
+            piece_x = popup_x + spacing + (i * (piece_size + spacing))
+
+            pygame.draw.rect(self.screen, self.YELLOW,
+                             (piece_x, piece_y, piece_size, piece_size))
+            pygame.draw.rect(self.screen, self.DARK_BROWN,
+                             (piece_x, piece_y, piece_size, piece_size), 1)
+
+            if piece[0] in self.piece_images:
+                image = pygame.transform.scale(self.piece_images[piece[0]], (piece_size - 10, piece_size - 10))
+                image_x = piece_x + 5
+                image_y = piece_y + 5
+                self.screen.blit(image, (image_x, image_y))
+
+            piece_areas[piece] = pygame.Rect(piece_x, piece_y, piece_size, piece_size)
+
+        pygame.display.flip()
+
+        while True:
+            for event in pygame.event.get():
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    mouse_pos = pygame.mouse.get_pos()
+                    for piece, area in piece_areas.items():
+                        if area.collidepoint(mouse_pos):
+                            return piece[0]
+                elif event.type == pygame.QUIT:
+                    return None
 
     def main_menu(self):
         self.screen.fill(self.DARK_BROWN)

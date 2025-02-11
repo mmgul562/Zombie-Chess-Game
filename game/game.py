@@ -52,6 +52,9 @@ class DisplaySettings:
         self.square_size = min(screen_height // board_y, screen_width // 8)
         self.center_offset_x = ((self.board_x * self.square_size) // 2) - (self.screen_width // 2)
         self.load_piece_images()
+        self.highlight_surface = pygame.Surface((self.square_size, self.square_size), pygame.SRCALPHA)
+        pygame.draw.rect(self.highlight_surface, self.HIGHLIGHT_COLOR,
+                         (0, 0, self.square_size, self.square_size))
 
 
 class Game:
@@ -65,7 +68,7 @@ class Game:
         screen_height = info_object.current_h - 50
         self.display_settings = DisplaySettings(screen_width, screen_height, board_y)
         self.screen = pygame.display.set_mode((screen_width, screen_height))
-        self.menu = Menu(self.screen, screen_width, screen_height)
+        self.menu = Menu(self.screen, screen_width, screen_height, self.display_settings.piece_images)
         self._help_section = None
         pygame.display.set_caption('Pawnbies')
 
@@ -204,6 +207,9 @@ class Game:
                         self.current_state = self.GAME_OVER
                         self.won = True
                     elif turn_result == TurnResult.OK:
+                        if row == 0 and self.gameplay.get_piece_at(row, col)[0] == 'p':
+                            new_piece = self.menu.pawn_promotion_menu()
+                            self.gameplay.promote_pawn(row, col, new_piece)
                         self.gameplay.unselect_piece()
                     else:
                         if self.gameplay.get_piece_at(row, col) and (row, col) != (start_row, start_col):

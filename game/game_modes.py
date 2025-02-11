@@ -86,6 +86,13 @@ class Gameplay:
             return TurnResult.CHECKMATE
         return TurnResult.OK
 
+    def promote_pawn(self, row, col, piece):
+        if self.board[row][col] is None:
+            return False
+        pawn_idx = int(self.board[row][col][1])
+        self.board[row][col] = f'{piece}{pawn_idx + 2}'
+        return True
+
     def is_valid_move(self, start_row, start_col, end_row, end_col):
         if self.board[end_row][end_col] != 'z' and self.board[end_row][end_col]:
             return False
@@ -200,8 +207,16 @@ class Gameplay:
 
         start_piece = self.board[row][start_col]
         end_piece = self.board[row][end_col]
-        if start_piece is None or end_piece is None or \
-                (start_piece[0] == 'r' and end_piece != 'K') or (start_piece == 'K' and end_piece[0] != 'r'):
+        if start_piece is None or end_piece is None:
+            return None
+
+        valid_combinations = (
+            ('r0', 'K'),
+            ('r1', 'K'),
+            ('K', 'r0'),
+            ('K', 'r1')
+        )
+        if (start_piece, end_piece) not in valid_combinations:
             return None
 
         step = 1 if end_col > start_col else -1
