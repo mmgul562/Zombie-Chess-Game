@@ -253,7 +253,7 @@ class Game:
             elif self.current_state == self.HELP_MENU:
                 if self._help_section:
                     help_section = self._help_section[0]
-                    help_section.draw()
+                    self.menu.update_help_menu(help_section)
             elif self.current_state == self.SETTINGS:
                 self.menu.game_settings_menu(self.gameplay.game_mode, self.gameplay.difficulty, self.gameplay.board_y)
             elif self.current_state == self.PLAYING:
