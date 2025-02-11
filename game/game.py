@@ -245,7 +245,7 @@ class Game:
             if self.current_state == self.MENU:
                 self.menu.main_menu()
             elif self.current_state == self.HELP_MENU:
-                if self._help_section is not None:
+                if self._help_section:
                     help_section = self._help_section[0]
                     help_section.draw()
             elif self.current_state == self.SETTINGS:

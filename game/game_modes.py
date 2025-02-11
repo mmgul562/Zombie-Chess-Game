@@ -56,6 +56,7 @@ class Gameplay:
         self.board.append(['r0', 'k0', 'b0', 'q', 'K', 'b1', 'k1', 'r1'])
         self.selected_piece = None
         self.last_moved_piece = None
+        self.can_do_castling = True
         self.board_y = board_y
         self.difficulty = difficulty
 
@@ -86,7 +87,7 @@ class Gameplay:
         return TurnResult.OK
 
     def is_valid_move(self, start_row, start_col, end_row, end_col):
-        if self.board[end_row][end_col] != 'z' and self.board[end_row][end_col] is not None:
+        if self.board[end_row][end_col] != 'z' and self.board[end_row][end_col]:
             return False
 
         piece = self.board[start_row][start_col]
@@ -96,7 +97,10 @@ class Gameplay:
         if piece == 'p':
             return self.check_pawn_move(start_row, start_col, end_row, end_col)
         elif piece == 'r':
-            return self.check_rook_move(start_row, start_col, end_row, end_col)
+            if self.check_rook_move(start_row, start_col, end_row, end_col):
+                self.can_do_castling = False
+                return True
+            return False
         elif piece == 'k':
             return self.check_knight_move(start_row, start_col, end_row, end_col)
         elif piece == 'b':
@@ -104,7 +108,10 @@ class Gameplay:
         elif piece == 'q':
             return self.check_queen_move(start_row, start_col, end_row, end_col)
         elif piece == 'K':
-            return self.check_king_move(start_row, start_col, end_row, end_col)
+            if self.check_king_move(start_row, start_col, end_row, end_col):
+                self.can_do_castling = False
+                return True
+            return False
 
     def move_piece(self, start_row, start_col, end_row, end_col):
         if self.is_valid_move(start_row, start_col, end_row, end_col):
@@ -114,6 +121,18 @@ class Gameplay:
                 return TurnResult.CHECKMATE
             self.last_moved_piece = self.board[end_row][end_col]
             return TurnResult.OK
+
+        castling_move = self.check_castling_move(start_row, start_col, end_col)
+        if castling_move:
+            self.board[start_row][start_col] = None
+            self.board[end_row][end_col] = None
+            self.board[start_row][castling_move[0]] = 'K'
+            self.board[start_row][castling_move[1]] = f'r{castling_move[2]}'
+            if self.move_wave() == TurnResult.CHECKMATE:
+                return TurnResult.CHECKMATE
+            self.last_moved_piece = 'K'
+            return TurnResult.OK
+
         return TurnResult.WRONG
 
     def move_wave(self):
@@ -175,6 +194,31 @@ class Gameplay:
                 return 'dm'
             return 'dc'
 
+    def check_castling_move(self, row, start_col, end_col):
+        if not self.can_do_castling:
+            return None
+
+        start_piece = self.board[row][start_col]
+        end_piece = self.board[row][end_col]
+        if start_piece is None or end_piece is None or \
+                (start_piece[0] == 'r' and end_piece != 'K') or (start_piece == 'K' and end_piece[0] != 'r'):
+            return None
+
+        step = 1 if end_col > start_col else -1
+        for col in range(start_col + step, end_col, step):
+            if self.board[row][col]:
+                return None
+
+        self.can_do_castling = False
+        # king pos, rook pos, rook index
+        if start_piece == 'r0':
+            return end_col - 2, end_col - 1, 0
+        if start_piece == 'r1':
+            return end_col + 2, end_col + 1, 1
+        if end_piece == 'r0':
+            return start_col - 2, start_col - 1, 0
+        return start_col + 2, start_col + 1, 1
+
     def check_pawn_move(self, start_row, start_col, end_row, end_col):
         if end_row >= start_row:
             return False
@@ -200,12 +244,12 @@ class Gameplay:
         if start_row == end_row:
             step = 1 if end_col > start_col else -1
             for col in range(start_col + step, end_col, step):
-                if self.board[start_row][col] is not None:
+                if self.board[start_row][col]:
                     return False
         else:
             step = 1 if end_row > start_row else -1
             for row in range(start_row + step, end_row, step):
-                if self.board[row][start_col] is not None:
+                if self.board[row][start_col]:
                     return False
         return True
 
@@ -226,7 +270,7 @@ class Gameplay:
         current_col = start_col + col_step
 
         while current_row != end_row and current_col != end_col:
-            if self.board[current_row][current_col] is not None:
+            if self.board[current_row][current_col]:
                 return False
             current_row += row_step
             current_col += col_step
@@ -278,6 +322,18 @@ class CaptureTheMost(Gameplay):
                 return TurnResult.CHECKMATE
             self.last_moved_piece = self.board[end_row][end_col]
             return TurnResult.OK
+
+        castling_move = self.check_castling_move(start_row, start_col, end_col)
+        if castling_move:
+            self.board[start_row][start_col] = None
+            self.board[end_row][end_col] = None
+            self.board[start_row][castling_move[0]] = 'K'
+            self.board[start_row][castling_move[1]] = f'r{castling_move[2]}'
+            if self.move_wave() == TurnResult.CHECKMATE:
+                return TurnResult.CHECKMATE
+            self.last_moved_piece = 'K'
+            return TurnResult.OK
+
         return TurnResult.WRONG
 
     def endgame_info(self, won):
@@ -310,6 +366,22 @@ class BlockTheBorder(Gameplay):
                 return TurnResult.WIN
             self.last_moved_piece = self.board[end_row][end_col]
             return TurnResult.OK
+
+        castling_move = self.check_castling_move(start_row, start_col, end_col)
+        if castling_move:
+            self.board[start_row][start_col] = None
+            self.board[end_row][end_col] = None
+            self.board[start_row][castling_move[0]] = 'K'
+            self.board[start_row][castling_move[1]] = f'r{castling_move[2]}'
+            self.turns_taken += 1
+            result = self.move_wave()
+            if result == TurnResult.CHECKMATE:
+                return TurnResult.CHECKMATE
+            elif result == TurnResult.WIN:
+                return TurnResult.WIN
+            self.last_moved_piece = 'K'
+            return TurnResult.OK
+
         return TurnResult.WRONG
 
     def move_wave(self):
