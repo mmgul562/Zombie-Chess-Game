@@ -104,8 +104,10 @@ class Menu:
         self.piece_images = piece_images
 
         self.LIGHT_BROWN = (255, 248, 220)
-        self.DARK_BROWN = (193, 120, 50)
+        self.BROWN = (193, 120, 50)
+        self.DARK_BROWN = (153, 90, 32)
         self.YELLOW = (255, 245, 95)
+        self.BOARD_COLORS = ((255, 215, 175), (205, 132, 55))
         self.SEPARATOR_COLOR = (223, 178, 110)
 
         self.scale_factor = min(screen_width, screen_height) / 1000
@@ -184,16 +186,17 @@ class Menu:
             self.separator_thickness
         )
 
-    def draw_button(self, text, y_pos, width=None, height=None, x_offset=0):
+    def draw_button(self, text, y, x=None, width=None, height=None, x_offset=0):
         if width is None:
             width = self.button_width
         if height is None:
             height = self.button_height
 
-        x = (self.screen_width // 2) - (width // 2) + x_offset
+        if x is None:
+            x = (self.screen_width // 2) - (width // 2) + x_offset
 
-        button_rect = pygame.Rect(x, y_pos - height // 2, width, height)
-        button_id = (x, y_pos)
+        button_rect = pygame.Rect(x, y - height // 2, width, height)
+        button_id = (x, y)
 
         if button_id not in self.current_scales:
             self.current_scales[button_id] = 1.0
@@ -214,7 +217,7 @@ class Menu:
         scaled_width = int(width * current_scale)
         scaled_height = int(height * current_scale)
         scaled_x = x - (scaled_width - width) // 2
-        scaled_y = y_pos - scaled_height // 2
+        scaled_y = y - scaled_height // 2
 
         scaled_rect = pygame.Rect(scaled_x, scaled_y, scaled_width, scaled_height)
 
@@ -227,7 +230,7 @@ class Menu:
 
         scaled_font = pygame.font.Font('util/Roboto-Regular.ttf',
                                        int(self.regular_font_size * current_scale))
-        text_surface = scaled_font.render(text, True, self.DARK_BROWN)
+        text_surface = scaled_font.render(text, True, self.BROWN)
         text_rect = text_surface.get_rect(center=scaled_rect.center)
         self.screen.blit(text_surface, text_rect)
 
@@ -245,7 +248,7 @@ class Menu:
 
         pygame.draw.rect(self.screen, self.LIGHT_BROWN,
                          (popup_x, popup_y, popup_width, popup_height))
-        pygame.draw.rect(self.screen, self.DARK_BROWN,
+        pygame.draw.rect(self.screen, self.BROWN,
                          (popup_x, popup_y, popup_width, popup_height), 2)
 
         piece_size = min(popup_height - 60, popup_width // 4 - 20)
@@ -259,7 +262,7 @@ class Menu:
 
             pygame.draw.rect(self.screen, self.YELLOW,
                              (piece_x, piece_y, piece_size, piece_size))
-            pygame.draw.rect(self.screen, self.DARK_BROWN,
+            pygame.draw.rect(self.screen, self.BROWN,
                              (piece_x, piece_y, piece_size, piece_size), 1)
 
             if piece[0] in self.piece_images:
@@ -283,21 +286,156 @@ class Menu:
                     return None
 
     def main_menu(self):
-        self.screen.fill(self.DARK_BROWN)
+        self.screen.fill(self.BROWN)
         self.draw_main_text('Zombie Chess Game', self.LIGHT_BROWN)
 
         first_button_y = self.content_start_y + self.element_spacing
         second_button_y = first_button_y + self.button_height + self.element_spacing
         third_button_y = second_button_y + self.button_height + self.element_spacing
+        fourth_button_y = third_button_y + self.button_height + self.element_spacing
 
         play_btn = self.draw_button('Play', first_button_y)
-        help_btn = self.draw_button('Help', second_button_y)
-        quit_btn = self.draw_button('Quit', third_button_y)
+        custom_btn = self.draw_button('Custom Modes', second_button_y)
+        help_btn = self.draw_button('Help', third_button_y)
+        quit_btn = self.draw_button('Quit', fourth_button_y)
 
-        return play_btn, help_btn, quit_btn
+        return play_btn, custom_btn, help_btn, quit_btn
+
+    def custom_menu(self):
+        self.screen.fill(self.BROWN)
+        self.draw_main_text('Custom Modes', self.LIGHT_BROWN)
+
+        first_button_y = self.content_start_y + self.element_spacing
+        second_button_y = first_button_y + self.button_height + self.element_spacing
+
+        create_btn = self.draw_button('Create New Mode', first_button_y)
+        load_btn = self.draw_button('Load New Mode', second_button_y)
+
+        left_offset = -int(self.screen_width * 0.3)
+        go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
+
+        return create_btn, load_btn, go_back_btn
+
+    def create_custom_menu(self, board_y):
+        self.screen.fill(self.BROWN)
+
+        board_height = self.screen_height * 0.7
+        square_size = min(board_height // board_y, (self.screen_width * 0.5) // 8)
+        board_width = square_size * 8
+        board_start_x = (self.screen_width // 2) - (board_width // 2)
+        board_start_y = (self.screen_height - board_height) // 4
+
+        piece_selector_width = int(self.screen_width * 0.1)
+        sections_gap = int(self.screen_width * 0.3) // 4
+        settings_x = board_start_x + board_width + sections_gap
+        piece_selector_x = board_start_x - piece_selector_width - sections_gap
+
+        add_board_height_btn = self.draw_button('+', board_start_y + board_height // 2 - self.font.get_height() * 1.5,
+                                                width=self.small_button_width, x=settings_x)
+        self.draw_text(str(board_y), self.LIGHT_BROWN, add_board_height_btn.centerx, board_start_y + board_height // 2)
+        rm_board_height_btn = self.draw_button('-', board_start_y + board_height // 2 + self.font.get_height() * 1.5,
+                                               width=self.small_button_width, x=settings_x)
+
+        for row in range(board_y):
+            for col in range(8):
+                x = board_start_x + (col * square_size)
+                y = board_start_y + (row * square_size)
+                color = self.BOARD_COLORS[(row + col) % 2]
+                pygame.draw.rect(self.screen, color, (x, y, square_size, square_size))
+
+        pygame.draw.rect(self.screen, self.SEPARATOR_COLOR,
+                         (piece_selector_x, board_start_y, piece_selector_width, board_height))
+        self.draw_section_text('Available Pieces', self.LIGHT_BROWN,
+                               piece_selector_x + piece_selector_width // 2, board_start_y - 40)
+
+        pieces = ['K', 'q', 'r', 'b', 'k', 'p', 'z']
+        piece_size = min(square_size - 10, piece_selector_width - 20)
+        piece_gap = (board_height - (7 * piece_size)) // 8
+        for i, piece in enumerate(pieces):
+            if piece in self.piece_images:
+                piece_x = piece_selector_x + (piece_selector_width - piece_size) // 2
+                piece_y = board_start_y + (i * (piece_size + piece_gap)) + piece_gap
+
+                pygame.draw.rect(self.screen, self.YELLOW,
+                                 (piece_x - 5, piece_y - 5, piece_size + 10, piece_size + 10))
+                pygame.draw.rect(self.screen, self.LIGHT_BROWN,
+                                 (piece_x - 5, piece_y - 5, piece_size + 10, piece_size + 10), 2)
+
+                image = pygame.transform.scale(self.piece_images[piece], (piece_size, piece_size))
+                self.screen.blit(image, (piece_x, piece_y))
+
+        left_offset = -int(self.screen_width * 0.3)
+        right_offset = int(self.screen_width * 0.3)
+
+        go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
+        clear_board_btn = self.draw_button('Clear Board', self.bottom_margin)
+        save_btn = self.draw_button('Save', self.bottom_margin, x_offset=right_offset)
+
+        return {
+            'board_area': pygame.Rect(board_start_x, board_start_y, board_height, board_height),
+            'square_size': square_size,
+            'board_start': (board_start_x, board_start_y),
+            'piece_selector': {
+                'area': pygame.Rect(piece_selector_x, board_start_y, piece_selector_width, board_height),
+                'pieces': [(piece, pygame.Rect(
+                    piece_selector_x + (piece_selector_width - piece_size) // 2,
+                    board_start_y + (i * (piece_size + 10)) + 20,
+                    piece_size, piece_size
+                )) for i, piece in enumerate(pieces)]
+            },
+            'buttons': {
+                'add_board_height': add_board_height_btn,
+                'rm_board_height': rm_board_height_btn,
+                'save': save_btn,
+                'clear': clear_board_btn,
+                'back': go_back_btn
+            }
+        }
+
+    def save_custom_menu(self, game_mode, difficulty):
+        self.screen.fill(self.BROWN)
+        self.draw_main_text('Choose Default Settings', self.LIGHT_BROWN)
+
+        first_section_y = self.content_start_y
+        second_section_y = first_section_y + self.section_spacing
+        third_section_y = second_section_y + 2 * self.section_spacing
+
+        change_game_mode_btn, disable_game_mode_btn = self.draw_section_row(
+            'Base Game Mode', game_mode, first_section_y,
+            [('>', None), ('X', None)]
+        )
+        self.draw_separator(first_section_y + self.element_spacing // 2)
+
+        change_difficulty_btn, disable_difficulty_btn = self.draw_section_row(
+            'Difficulty', difficulty, second_section_y,
+            [('>', None), ('X', None)]
+        )
+        self.draw_separator(second_section_y + self.element_spacing // 2)
+
+        self.draw_section_text('If you use default settings, users will not be able to change them', self.LIGHT_BROWN,
+                               self.screen_width // 2, third_section_y)
+
+        left_offset = -int(self.screen_width * 0.3)
+        right_offset = int(self.screen_width * 0.3)
+
+        go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
+        save_btn = self.draw_button('Save', self.bottom_margin, x_offset=right_offset)
+
+        buttons = (change_game_mode_btn, disable_game_mode_btn, change_difficulty_btn, disable_difficulty_btn,
+                   go_back_btn, save_btn)
+        return buttons
+
+    def load_custom_menu(self):
+        self.screen.fill(self.BROWN)
+        self.draw_main_text('Load Custom Mode', self.LIGHT_BROWN)
+
+        left_offset = -int(self.screen_width * 0.3)
+        go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
+
+        return go_back_btn
 
     def game_settings_menu(self, game_mode, difficulty, board_y):
-        self.screen.fill(self.DARK_BROWN)
+        self.screen.fill(self.BROWN)
         self.draw_main_text('Play', self.LIGHT_BROWN)
 
         first_section_y = self.content_start_y
@@ -325,16 +463,14 @@ class Menu:
         left_offset = -int(self.screen_width * 0.3)
         right_offset = int(self.screen_width * 0.3)
 
-        go_back_btn = self.draw_button('Go Back', self.bottom_margin,
-                                       x_offset=left_offset)
-        play_btn = self.draw_button('Play', self.bottom_margin,
-                                    x_offset=right_offset)
+        go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
+        play_btn = self.draw_button('Play', self.bottom_margin, x_offset=right_offset)
 
         buttons = (game_mode_btn, difficulty_btn, add_btn, rm_btn, play_btn, go_back_btn)
         return buttons
 
     def game_over_menu(self, endgame_info):
-        self.screen.fill(self.DARK_BROWN)
+        self.screen.fill(self.BROWN)
         self.draw_main_text('Game Over!', self.LIGHT_BROWN)
 
         info_y = self.content_start_y + self.element_spacing
@@ -349,7 +485,7 @@ class Menu:
         return restart_btn, menu_btn
 
     def help_menu(self):
-        self.screen.fill(self.DARK_BROWN)
+        self.screen.fill(self.BROWN)
         self.draw_main_text('Help', self.LIGHT_BROWN)
 
         content_rect = pygame.Rect(
@@ -410,6 +546,7 @@ class Menu:
             "",
             "",
             "3. Difficulty Levels:",
+            "   - Easy: spawns up to 1 zombie each turn, player can move the same piece every turn",
             "   - Normal: spawns up to 1 zombie each turn",
             "   - Hard: spawns up to 2 zombies each turn",
             "   - Extreme: spawns up to 3 zombies each turn",
@@ -424,7 +561,7 @@ class Menu:
         return help_section, go_back_btn
 
     def update_help_menu(self, scrollable_section):
-        self.screen.fill(self.DARK_BROWN)
+        self.screen.fill(self.BROWN)
         self.draw_main_text('Help', self.LIGHT_BROWN)
         left_offset = -int(self.screen_width * 0.3)
         self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)

@@ -26,7 +26,8 @@ class GameModes(Enum):
 
 
 class Difficulties(Enum):
-    NORMAL = 1
+    EASY = 1
+    NORMAL = 1.5
     HARD = 2
     EXTREME = 3
 
@@ -126,7 +127,8 @@ class Gameplay:
             self.board[start_row][start_col] = None
             if self.move_wave() == TurnResult.CHECKMATE:
                 return TurnResult.CHECKMATE
-            self.last_moved_piece = self.board[end_row][end_col]
+            if self.difficulty != Difficulties.EASY:
+                self.last_moved_piece = self.board[end_row][end_col]
             return TurnResult.OK
 
         castling_move = self.check_castling_move(start_row, start_col, end_col)
@@ -137,7 +139,8 @@ class Gameplay:
             self.board[start_row][castling_move[1]] = f'r{castling_move[2]}'
             if self.move_wave() == TurnResult.CHECKMATE:
                 return TurnResult.CHECKMATE
-            self.last_moved_piece = 'K'
+            if self.difficulty != Difficulties.EASY:
+                self.last_moved_piece = 'K'
             return TurnResult.OK
 
         return TurnResult.WRONG
@@ -163,13 +166,13 @@ class Gameplay:
                     self.board[i][j + 1] = 'z'
                     if move[1] == 'm':
                         self.board[i][j] = None
-                elif move[0] == 'l':
+                else:
                     if self.is_checkmate(i, j - 1):
                         return TurnResult.CHECKMATE
                     self.board[i][j - 1] = 'z'
                     if move[1] == 'm':
                         self.board[i][j] = None
-        return self.create_new_zombies(random.randint(0, self.difficulty.value))
+        return self.create_new_zombies(random.randint(0, int(self.difficulty.value)))
 
     def create_new_zombies(self, n):
         new_spots = random.sample(range(8), n)
@@ -335,7 +338,8 @@ class CaptureTheMost(Gameplay):
             self.board[start_row][start_col] = None
             if self.move_wave() == TurnResult.CHECKMATE:
                 return TurnResult.CHECKMATE
-            self.last_moved_piece = self.board[end_row][end_col]
+            if self.difficulty != Difficulties.EASY:
+                self.last_moved_piece = self.board[end_row][end_col]
             return TurnResult.OK
 
         castling_move = self.check_castling_move(start_row, start_col, end_col)
@@ -346,7 +350,8 @@ class CaptureTheMost(Gameplay):
             self.board[start_row][castling_move[1]] = f'r{castling_move[2]}'
             if self.move_wave() == TurnResult.CHECKMATE:
                 return TurnResult.CHECKMATE
-            self.last_moved_piece = 'K'
+            if self.difficulty != Difficulties.EASY:
+                self.last_moved_piece = 'K'
             return TurnResult.OK
 
         return TurnResult.WRONG
@@ -379,7 +384,8 @@ class BlockTheBorder(Gameplay):
                 return TurnResult.CHECKMATE
             elif result == TurnResult.WIN:
                 return TurnResult.WIN
-            self.last_moved_piece = self.board[end_row][end_col]
+            if self.difficulty != Difficulties.EASY:
+                self.last_moved_piece = self.board[end_row][end_col]
             return TurnResult.OK
 
         castling_move = self.check_castling_move(start_row, start_col, end_col)
@@ -394,7 +400,8 @@ class BlockTheBorder(Gameplay):
                 return TurnResult.CHECKMATE
             elif result == TurnResult.WIN:
                 return TurnResult.WIN
-            self.last_moved_piece = 'K'
+            if self.difficulty != Difficulties.EASY:
+                self.last_moved_piece = 'K'
             return TurnResult.OK
 
         return TurnResult.WRONG
@@ -424,7 +431,7 @@ class BlockTheBorder(Gameplay):
                         self.board[i][j] = None
                     else:
                         self.pieces_left -= 1
-                elif move[0] == 'l':
+                else:
                     if self.is_checkmate(i, j - 1):
                         return TurnResult.CHECKMATE
                     self.board[i][j - 1] = 'z'
@@ -434,7 +441,7 @@ class BlockTheBorder(Gameplay):
                         self.pieces_left -= 1
         if self.pieces_left < 8:
             return TurnResult.CHECKMATE
-        return self.create_new_zombies(random.randint(0, self.difficulty.value))
+        return self.create_new_zombies(random.randint(0, int(self.difficulty.value)))
 
     def create_new_zombies(self, n):
         new_spots = self.get_free_border_spots()
