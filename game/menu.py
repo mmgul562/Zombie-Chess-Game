@@ -109,6 +109,7 @@ class Menu:
         self.YELLOW = (255, 245, 95)
         self.BOARD_COLORS = ((255, 215, 175), (205, 132, 55))
         self.SEPARATOR_COLOR = (223, 178, 110)
+        self.HIGHLIGHT_COLOR = (75, 200, 70, 128)
 
         self.scale_factor = min(screen_width, screen_height) / 1000
 
@@ -316,26 +317,29 @@ class Menu:
 
         return create_btn, load_btn, go_back_btn
 
-    def create_custom_menu(self, board_y):
+    def create_custom_menu(self, board_y, board, selected_piece):
         self.screen.fill(self.BROWN)
 
-        board_height = self.screen_height * 0.7
-        square_size = min(board_height // board_y, (self.screen_width * 0.5) // 8)
+        base_board_height = self.screen_height * 0.7
+        square_size = min(base_board_height // board_y, (self.screen_width * 0.5) // 8)
         board_width = square_size * 8
+        board_height = square_size * board_y
         board_start_x = (self.screen_width // 2) - (board_width // 2)
-        board_start_y = (self.screen_height - board_height) // 4
+        board_start_y = (self.screen_height - base_board_height) // 4
 
         piece_selector_width = int(self.screen_width * 0.1)
         sections_gap = int(self.screen_width * 0.3) // 4
         settings_x = board_start_x + board_width + sections_gap
         piece_selector_x = board_start_x - piece_selector_width - sections_gap
 
-        add_board_height_btn = self.draw_button('+', board_start_y + board_height // 2 - self.font.get_height() * 1.5,
+        add_board_height_btn = self.draw_button('+', board_start_y + base_board_height // 2 - self.font.get_height() * 1.5,
                                                 width=self.small_button_width, x=settings_x)
-        self.draw_text(str(board_y), self.LIGHT_BROWN, add_board_height_btn.centerx, board_start_y + board_height // 2)
-        rm_board_height_btn = self.draw_button('-', board_start_y + board_height // 2 + self.font.get_height() * 1.5,
+        self.draw_text(str(board_y), self.LIGHT_BROWN, add_board_height_btn.centerx, board_start_y + base_board_height // 2)
+        rm_board_height_btn = self.draw_button('-', board_start_y + base_board_height // 2 + self.font.get_height() * 1.5,
                                                width=self.small_button_width, x=settings_x)
 
+        pygame.draw.rect(self.screen, self.DARK_BROWN,
+                         (board_start_x - 5, board_start_y - 5, board_width + 10, board_height + 10), 5)
         for row in range(board_y):
             for col in range(8):
                 x = board_start_x + (col * square_size)
@@ -343,23 +347,44 @@ class Menu:
                 color = self.BOARD_COLORS[(row + col) % 2]
                 pygame.draw.rect(self.screen, color, (x, y, square_size, square_size))
 
+                piece = board[row][col]
+                if piece and piece in self.piece_images:
+                    piece_size = square_size - 10
+                    image = pygame.transform.scale(
+                        self.piece_images[piece],
+                        (piece_size, piece_size)
+                    )
+                    self.screen.blit(image, (x + 5, y + 5))
+
         pygame.draw.rect(self.screen, self.SEPARATOR_COLOR,
-                         (piece_selector_x, board_start_y, piece_selector_width, board_height))
+                         (piece_selector_x, board_start_y, piece_selector_width, base_board_height))
         self.draw_section_text('Available Pieces', self.LIGHT_BROWN,
                                piece_selector_x + piece_selector_width // 2, board_start_y - 40)
 
         pieces = ['K', 'q', 'r', 'b', 'k', 'p', 'z']
-        piece_size = min(square_size - 10, piece_selector_width - 20)
-        piece_gap = (board_height - (7 * piece_size)) // 8
+        piece_size = int((base_board_height // 7) * 0.8)
+        piece_gap = (base_board_height - (7 * piece_size)) // 8
+        selector_square_size = piece_size + 10
+        highlight_surface = pygame.Surface((selector_square_size, selector_square_size), pygame.SRCALPHA)
+        pygame.draw.rect(highlight_surface, self.HIGHLIGHT_COLOR,
+                         (0, 0, selector_square_size, selector_square_size))
+
         for i, piece in enumerate(pieces):
             if piece in self.piece_images:
                 piece_x = piece_selector_x + (piece_selector_width - piece_size) // 2
                 piece_y = board_start_y + (i * (piece_size + piece_gap)) + piece_gap
 
                 pygame.draw.rect(self.screen, self.YELLOW,
-                                 (piece_x - 5, piece_y - 5, piece_size + 10, piece_size + 10))
-                pygame.draw.rect(self.screen, self.LIGHT_BROWN,
-                                 (piece_x - 5, piece_y - 5, piece_size + 10, piece_size + 10), 2)
+                                 (piece_x - 5, piece_y - 5, selector_square_size, selector_square_size))
+                if i == 0:
+                    pygame.draw.rect(self.screen, self.DARK_BROWN,
+                                     (piece_x - 5, piece_y - 5, selector_square_size, selector_square_size), 3)
+                else:
+                    pygame.draw.rect(self.screen, self.LIGHT_BROWN,
+                                     (piece_x - 5, piece_y - 5, selector_square_size, selector_square_size), 2)
+
+                if piece is selected_piece:
+                    self.screen.blit(highlight_surface, (piece_x - 5, piece_y - 5))
 
                 image = pygame.transform.scale(self.piece_images[piece], (piece_size, piece_size))
                 self.screen.blit(image, (piece_x, piece_y))
@@ -372,17 +397,14 @@ class Menu:
         save_btn = self.draw_button('Save', self.bottom_margin, x_offset=right_offset)
 
         return {
-            'board_area': pygame.Rect(board_start_x, board_start_y, board_height, board_height),
+            'board_area': pygame.Rect(board_start_x, board_start_y, base_board_height, base_board_height),
             'square_size': square_size,
             'board_start': (board_start_x, board_start_y),
-            'piece_selector': {
-                'area': pygame.Rect(piece_selector_x, board_start_y, piece_selector_width, board_height),
-                'pieces': [(piece, pygame.Rect(
-                    piece_selector_x + (piece_selector_width - piece_size) // 2,
-                    board_start_y + (i * (piece_size + 10)) + 20,
-                    piece_size, piece_size
-                )) for i, piece in enumerate(pieces)]
-            },
+            'pieces': [(piece, pygame.Rect(
+                piece_selector_x + (piece_selector_width - piece_size) // 2,
+                board_start_y + (i * (piece_size + piece_gap)) + piece_gap,
+                piece_size, piece_size
+            )) for i, piece in enumerate(pieces)],
             'buttons': {
                 'add_board_height': add_board_height_btn,
                 'rm_board_height': rm_board_height_btn,

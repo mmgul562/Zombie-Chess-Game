@@ -1,9 +1,10 @@
-import os
 import pygame
 
-from game.menu import Menu
+import os
 
+from game.menu import Menu
 from game.game_modes import *
+from game.custom import *
 
 
 class DisplaySettings:
@@ -11,9 +12,8 @@ class DisplaySettings:
         self.screen_width = screen_width
         self.screen_height = screen_height
         self.square_size = min(screen_height // board_y, screen_width // 8)
-        self.board_x = 8
         self.board_y = board_y
-        self.center_offset_x = ((self.board_x * self.square_size) // 2) - (self.screen_width // 2)
+        self.center_offset_x = ((8 * self.square_size) // 2) - (self.screen_width // 2)
 
         self.BACKGROUND = (220, 168, 128)
         self.LIGHT_COLOR = (255, 215, 175)
@@ -50,7 +50,7 @@ class DisplaySettings:
         else:
             self.board_y = board_y
         self.square_size = min(screen_height // board_y, screen_width // 8)
-        self.center_offset_x = ((self.board_x * self.square_size) // 2) - (self.screen_width // 2)
+        self.center_offset_x = ((8 * self.square_size) // 2) - (self.screen_width // 2)
         self.load_piece_images()
         self.highlight_surface = pygame.Surface((self.square_size, self.square_size), pygame.SRCALPHA)
         pygame.draw.rect(self.highlight_surface, self.HIGHLIGHT_COLOR,
@@ -62,6 +62,7 @@ class Game:
         pygame.init()
         self.won = False
         self.gameplay = self.init_game_mode(board_y, difficulty, game_mode)
+        self.custom = CustomGameMode()
 
         info_object = pygame.display.Info()
         screen_width = info_object.current_w
@@ -144,15 +145,50 @@ class Game:
                 self.current_state = self.MENU
 
     def handle_create_custom_state(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
-            mouse_pos = pygame.mouse.get_pos()
-            custom_info = self.menu.create_custom_menu(8)
-            buttons = custom_info['buttons']
+        custom_info = self.menu.create_custom_menu(self.custom.board_y, self.custom.board, self.custom.selected_piece)
+        square_size = custom_info['square_size']
+        board_x, board_y = custom_info['board_start']
 
-            if buttons['back'].collidepoint(mouse_pos):
-                self.current_state = self.CUSTOM_MENU
-            elif buttons['save'].collidepoint(mouse_pos):
-                self.current_state = self.SAVE_CUSTOM
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            mouse_pos = pygame.mouse.get_pos()
+            buttons = custom_info['buttons']
+            board_rect = custom_info['board_area']
+
+            if event.button == pygame.BUTTON_LEFT:
+                if buttons['back'].collidepoint(mouse_pos):
+                    self.current_state = self.CUSTOM_MENU
+                    self.custom.unselect_piece()
+                    return
+                elif buttons['save'].collidepoint(mouse_pos):
+                    if self.custom.has_king():
+                        self.current_state = self.SAVE_CUSTOM
+                    self.custom.unselect_piece()
+                    return
+                elif buttons['clear'].collidepoint(mouse_pos):
+                    self.custom.clear_board()
+                    return
+                elif buttons['add_board_height'].collidepoint(mouse_pos):
+                    self.custom.add_board_height()
+                elif buttons['rm_board_height'].collidepoint(mouse_pos):
+                    self.custom.rm_board_height()
+
+                for piece, rect in custom_info['pieces']:
+                    if rect.collidepoint(mouse_pos):
+                        self.custom.select_piece(piece)
+                        return
+
+                if board_rect.collidepoint(mouse_pos):
+                    col = int((mouse_pos[0] - board_x) // square_size)
+                    row = int((mouse_pos[1] - board_y) // square_size)
+                    if 0 <= row < self.custom.board_y and 0 <= col < 8:
+                        self.custom.put_selected_piece(row, col)
+
+            elif event.button == pygame.BUTTON_RIGHT:
+                if board_rect.collidepoint(mouse_pos):
+                    col = int((mouse_pos[0] - board_x) // square_size)
+                    row = int((mouse_pos[1] - board_y) // square_size)
+                    if 0 <= row < self.custom.board_y and 0 <= col < 8:
+                        self.custom.rm_piece(row, col)
 
     def handle_save_custom_state(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
@@ -243,7 +279,7 @@ class Game:
             else:
                 col = (event.pos[0] + self.display_settings.center_offset_x) // self.display_settings.square_size
                 row = event.pos[1] // self.display_settings.square_size
-                if col < 0 or row < 0 or col >= self.display_settings.board_x or row >= self.display_settings.board_y:
+                if col < 0 or row < 0 or col >= 8 or row >= self.display_settings.board_y:
                     return
 
                 if self.gameplay.selected_piece:
@@ -310,7 +346,7 @@ class Game:
             elif self.current_state == self.CUSTOM_MENU:
                 self.menu.custom_menu()
             elif self.current_state == self.CREATE_CUSTOM:
-                self.menu.create_custom_menu(8)
+                self.menu.create_custom_menu(self.custom.board_y, self.custom.board, self.custom.selected_piece)
             elif self.current_state == self.SAVE_CUSTOM:
                 self.menu.save_custom_menu(self.gameplay.game_mode, self.gameplay.difficulty)
             elif self.current_state == self.LOAD_CUSTOM:

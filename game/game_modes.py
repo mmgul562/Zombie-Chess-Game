@@ -78,7 +78,7 @@ class Gameplay:
         return self.selected_piece == (row, col)
 
     def is_checkmate(self, i, j):
-        if self.board[i][j] == 'K':
+        if self.board[i][j][0] == 'K':
             return True
 
     def skip_turn(self):
@@ -177,7 +177,7 @@ class Gameplay:
     def create_new_zombies(self, n):
         new_spots = random.sample(range(8), n)
         for i in new_spots:
-            if self.board[0][i] == 'K':
+            if self.board[0][i][0] == 'K':
                 return TurnResult.CHECKMATE
             self.board[0][i] = 'z'
         return TurnResult.OK
@@ -314,7 +314,7 @@ class SurviveTheLongest(Gameplay):
     def create_new_zombies(self, n):
         new_spots = random.sample(range(8), n)
         for i in new_spots:
-            if self.board[0][i] == 'K':
+            if self.board[0][i][0] == 'K':
                 return TurnResult.CHECKMATE
             self.board[0][i] = 'z'
         self.waves += 1
