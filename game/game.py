@@ -7,6 +7,19 @@ from game.game_modes import *
 from game.custom import *
 
 
+class GameStates(Enum):
+    MENU = 0
+    HELP_MENU = 1
+    CUSTOM_MENU = 2
+    CREATE_CUSTOM = 3
+    SAVE_CUSTOM = 4
+    SAVING_STATUS = 5
+    LOAD_CUSTOM = 6
+    SETTINGS = 7
+    GAME_OVER = 8
+    PLAYING = 9
+
+
 class DisplaySettings:
     def __init__(self, screen_width, screen_height, board_y):
         self.screen_width = screen_width
@@ -73,16 +86,7 @@ class Game:
         self._help_section = None
         pygame.display.set_caption('Pawnbies')
 
-        self.MENU = 'menu'
-        self.CUSTOM_MENU = 'custom_menu'
-        self.CREATE_CUSTOM = 'create_custom'
-        self.SAVE_CUSTOM = 'save_custom'
-        self.LOAD_CUSTOM = 'load_custom'
-        self.HELP_MENU = 'help_menu'
-        self.SETTINGS = 'settings'
-        self.PLAYING = 'playing'
-        self.GAME_OVER = 'game_over'
-        self.current_state = self.MENU
+        self.current_state = GameStates.MENU
 
     @staticmethod
     def init_game_mode(board_y, difficulty, game_mode):
@@ -116,7 +120,8 @@ class Game:
                 piece = self.gameplay.get_piece_at(row, col)
                 if piece and piece[0] in self.display_settings.piece_images:
                     self.screen.blit(self.display_settings.piece_images[piece[0]],
-                                     ((col * self.display_settings.square_size + 5) - self.display_settings.center_offset_x,
+                                     ((
+                                              col * self.display_settings.square_size + 5) - self.display_settings.center_offset_x,
                                       row * self.display_settings.square_size + 5))
 
     def handle_menu_state(self, event):
@@ -124,11 +129,11 @@ class Game:
             mouse_pos = pygame.mouse.get_pos()
             play_btn, custom_btn, help_btn, quit_btn = self.menu.main_menu()
             if play_btn.collidepoint(mouse_pos):
-                self.current_state = self.SETTINGS
+                self.current_state = GameStates.SETTINGS
             elif custom_btn.collidepoint(mouse_pos):
-                self.current_state = self.CUSTOM_MENU
+                self.current_state = GameStates.CUSTOM_MENU
             elif help_btn.collidepoint(mouse_pos):
-                self.current_state = self.HELP_MENU
+                self.current_state = GameStates.HELP_MENU
             elif quit_btn.collidepoint(mouse_pos):
                 return False
         return True
@@ -138,11 +143,11 @@ class Game:
             mouse_pos = pygame.mouse.get_pos()
             create_btn, load_btn, back_btn = self.menu.custom_menu()
             if create_btn.collidepoint(mouse_pos):
-                self.current_state = self.CREATE_CUSTOM
+                self.current_state = GameStates.CREATE_CUSTOM
             elif load_btn.collidepoint(mouse_pos):
-                self.current_state = self.LOAD_CUSTOM
+                self.current_state = GameStates.LOAD_CUSTOM
             elif back_btn.collidepoint(mouse_pos):
-                self.current_state = self.MENU
+                self.current_state = GameStates.MENU
 
     def handle_create_custom_state(self, event):
         custom_info = self.menu.create_custom_menu(self.custom.board_y, self.custom.board, self.custom.selected_piece)
@@ -156,12 +161,12 @@ class Game:
 
             if event.button == pygame.BUTTON_LEFT:
                 if buttons['back'].collidepoint(mouse_pos):
-                    self.current_state = self.CUSTOM_MENU
+                    self.current_state = GameStates.CUSTOM_MENU
                     self.custom.unselect_piece()
                     return
-                elif buttons['save'].collidepoint(mouse_pos):
+                elif buttons['next'].collidepoint(mouse_pos):
                     if self.custom.has_king():
-                        self.current_state = self.SAVE_CUSTOM
+                        self.current_state = GameStates.SAVE_CUSTOM
                     self.custom.unselect_piece()
                     return
                 elif buttons['clear'].collidepoint(mouse_pos):
@@ -193,23 +198,65 @@ class Game:
     def handle_save_custom_state(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
             mouse_pos = pygame.mouse.get_pos()
-            buttons = self.menu.save_custom_menu(self.gameplay.game_mode, self.gameplay.difficulty)
-            change_gm_btn = buttons[0]
-            disable_gm_btn = buttons[1]
-            change_difficulty_btn = buttons[2]
-            disable_difficulty_btn = buttons[3]
-            back_btn = buttons[4]
-            save_btn = buttons[5]
+            custom_info = self.menu.save_custom_menu(self.custom.base_game_mode, self.custom.difficulty,
+                                                     self.custom.game_mode_disabled, self.custom.difficulty_disabled,
+                                                     self.custom.name, self.custom.is_focused)
+            buttons = custom_info['buttons']
+            input_area = custom_info['input_area']
 
-            if back_btn.collidepoint(mouse_pos):
-                self.current_state = self.CREATE_CUSTOM
+            if buttons['back'].collidepoint(mouse_pos):
+                self.current_state = GameStates.CREATE_CUSTOM
+            elif buttons['change_gm'].collidepoint(mouse_pos):
+                if not self.custom.game_mode_disabled:
+                    self.custom.base_game_mode = self.custom.base_game_mode.switch()
+            elif buttons['disable_gm'].collidepoint(mouse_pos):
+                self.custom.game_mode_disabled = False if self.custom.game_mode_disabled else True
+            elif buttons['change_difficulty'].collidepoint(mouse_pos):
+                if not self.custom.difficulty_disabled:
+                    self.custom.difficulty = self.custom.difficulty.switch()
+            elif buttons['disable_difficulty'].collidepoint(mouse_pos):
+                self.custom.difficulty_disabled = False if self.custom.difficulty_disabled else True
+            elif buttons['save'].collidepoint(mouse_pos):
+                if self.custom.is_name_ok():
+                    self.custom.save()
+                    self.current_state = GameStates.SAVING_STATUS
+
+            if input_area.collidepoint(mouse_pos):
+                self.custom.is_focused = True
+            else:
+                self.custom.is_focused = False
+
+        elif event.type == pygame.KEYDOWN:
+            if self.custom.is_focused:
+                if event.key == pygame.K_BACKSPACE:
+                    self.custom.name = self.custom.name[:-1]
+                else:
+                    self.custom.name += event.unicode
+
+    def handle_saving_status_state(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
+            mouse_pos = pygame.mouse.get_pos()
+
+            main_text = 'Success'
+            additional_info = 'Game Mode saved successfully'
+            if self.custom.error_msg:
+                main_text = 'Saving Failed'
+                additional_info = self.custom.error_msg
+            restart_btn, menu_btn = self.menu.information_menu(main_text, 'Go Back', 'Main Menu',
+                                                               additional_info=additional_info)
+            if restart_btn.collidepoint(mouse_pos):
+                self.custom.unselect_piece()
+                self.current_state = GameStates.CREATE_CUSTOM
+            elif menu_btn.collidepoint(mouse_pos):
+                self.custom.reset()
+                self.current_state = GameStates.MENU
 
     def handle_load_custom_state(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
             mouse_pos = pygame.mouse.get_pos()
             back_btn = self.menu.load_custom_menu()
             if back_btn.collidepoint(mouse_pos):
-                self.current_state = self.CUSTOM_MENU
+                self.current_state = GameStates.CUSTOM_MENU
 
     def handle_help_menu_state(self, event):
         if self._help_section is None:
@@ -219,7 +266,7 @@ class Game:
             mouse_pos = pygame.mouse.get_pos()
             back_btn = self._help_section[1]
             if back_btn.collidepoint(mouse_pos):
-                self.current_state = self.MENU
+                self.current_state = GameStates.MENU
                 self._help_section = None
 
         if event.type == pygame.MOUSEWHEEL:
@@ -255,18 +302,19 @@ class Game:
                 self.gameplay = self.init_game_mode(self.gameplay.board_y,
                                                     self.gameplay.difficulty,
                                                     self.gameplay.game_mode)
-                self.current_state = self.PLAYING
+                self.current_state = GameStates.PLAYING
             elif back_btn.collidepoint(mouse_pos):
-                self.current_state = self.MENU
+                self.current_state = GameStates.MENU
 
     def handle_game_over_state(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
             mouse_pos = pygame.mouse.get_pos()
-            restart_btn, menu_btn = self.menu.game_over_menu(self.gameplay.endgame_info(self.won))
+            restart_btn, menu_btn = self.menu.information_menu('Game Over', 'Try Again', 'Main Menu',
+                                                               additional_info=self.gameplay.endgame_info(self.won))
             if restart_btn.collidepoint(mouse_pos):
-                self.current_state = self.SETTINGS
+                self.current_state = GameStates.SETTINGS
             elif menu_btn.collidepoint(mouse_pos):
-                self.current_state = self.MENU
+                self.current_state = GameStates.MENU
 
     def handle_playing_state(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -274,7 +322,7 @@ class Game:
                 self.gameplay.unselect_piece()
             elif event.button == pygame.BUTTON_MIDDLE:
                 if self.gameplay.skip_turn() == TurnResult.CHECKMATE:
-                    self.current_state = self.GAME_OVER
+                    self.current_state = GameStates.GAME_OVER
                     self.won = False
             else:
                 col = (event.pos[0] + self.display_settings.center_offset_x) // self.display_settings.square_size
@@ -286,10 +334,10 @@ class Game:
                     start_row, start_col = self.gameplay.selected_piece
                     turn_result = self.gameplay.move_piece(start_row, start_col, row, col)
                     if turn_result == TurnResult.CHECKMATE:
-                        self.current_state = self.GAME_OVER
+                        self.current_state = GameStates.GAME_OVER
                         self.won = False
                     elif turn_result == TurnResult.WIN:
-                        self.current_state = self.GAME_OVER
+                        self.current_state = GameStates.GAME_OVER
                         self.won = True
                     elif turn_result == TurnResult.OK:
                         if row == 0 and self.gameplay.get_piece_at(row, col)[0] == 'p':
@@ -311,26 +359,28 @@ class Game:
 
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    self.current_state = self.MENU
+                    self.current_state = GameStates.MENU
 
-            if self.current_state == self.MENU:
+            if self.current_state == GameStates.MENU:
                 if not self.handle_menu_state(event):
                     return False
-            elif self.current_state == self.CUSTOM_MENU:
+            elif self.current_state == GameStates.CUSTOM_MENU:
                 self.handle_custom_menu_state(event)
-            elif self.current_state == self.CREATE_CUSTOM:
+            elif self.current_state == GameStates.CREATE_CUSTOM:
                 self.handle_create_custom_state(event)
-            elif self.current_state == self.SAVE_CUSTOM:
+            elif self.current_state == GameStates.SAVE_CUSTOM:
                 self.handle_save_custom_state(event)
-            elif self.current_state == self.LOAD_CUSTOM:
+            elif self.current_state == GameStates.SAVING_STATUS:
+                self.handle_saving_status_state(event)
+            elif self.current_state == GameStates.LOAD_CUSTOM:
                 self.handle_load_custom_state(event)
-            elif self.current_state == self.HELP_MENU:
+            elif self.current_state == GameStates.HELP_MENU:
                 self.handle_help_menu_state(event)
-            elif self.current_state == self.SETTINGS:
+            elif self.current_state == GameStates.SETTINGS:
                 self.handle_settings_state(event)
-            elif self.current_state == self.GAME_OVER:
+            elif self.current_state == GameStates.GAME_OVER:
                 self.handle_game_over_state(event)
-            elif self.current_state == self.PLAYING:
+            elif self.current_state == GameStates.PLAYING:
                 self.handle_playing_state(event)
         return True
 
@@ -341,27 +391,36 @@ class Game:
         while running:
             running = self.handle_events()
 
-            if self.current_state == self.MENU:
+            if self.current_state == GameStates.MENU:
                 self.menu.main_menu()
-            elif self.current_state == self.CUSTOM_MENU:
+            elif self.current_state == GameStates.CUSTOM_MENU:
                 self.menu.custom_menu()
-            elif self.current_state == self.CREATE_CUSTOM:
+            elif self.current_state == GameStates.CREATE_CUSTOM:
                 self.menu.create_custom_menu(self.custom.board_y, self.custom.board, self.custom.selected_piece)
-            elif self.current_state == self.SAVE_CUSTOM:
-                self.menu.save_custom_menu(self.gameplay.game_mode, self.gameplay.difficulty)
-            elif self.current_state == self.LOAD_CUSTOM:
+            elif self.current_state == GameStates.SAVE_CUSTOM:
+                self.menu.save_custom_menu(self.custom.base_game_mode, self.custom.difficulty,
+                                           self.custom.game_mode_disabled, self.custom.difficulty_disabled,
+                                           self.custom.name, self.custom.is_focused)
+            elif self.current_state == GameStates.SAVING_STATUS:
+                main_text = 'Success'
+                additional_info = 'Game Mode saved successfully'
+                if self.custom.error_msg:
+                    main_text = 'Saving Failed'
+                    additional_info = self.custom.error_msg
+                self.menu.information_menu(main_text, 'Go Back', 'Main Menu', additional_info=additional_info)
+            elif self.current_state == GameStates.LOAD_CUSTOM:
                 self.menu.load_custom_menu()
-            elif self.current_state == self.HELP_MENU:
+            elif self.current_state == GameStates.HELP_MENU:
                 if self._help_section:
                     help_section = self._help_section[0]
                     self.menu.update_help_menu(help_section)
-            elif self.current_state == self.SETTINGS:
+            elif self.current_state == GameStates.SETTINGS:
                 self.menu.game_settings_menu(self.gameplay.game_mode, self.gameplay.difficulty, self.gameplay.board_y)
-            elif self.current_state == self.PLAYING:
+            elif self.current_state == GameStates.PLAYING:
                 self.draw_board()
                 self.draw_pieces()
-            elif self.current_state == self.GAME_OVER:
-                self.menu.game_over_menu(self.gameplay.endgame_info(self.won))
+            elif self.current_state == GameStates.GAME_OVER:
+                self.menu.information_menu(self.gameplay.endgame_info(self.won))
 
             pygame.display.flip()
             clock.tick(60)

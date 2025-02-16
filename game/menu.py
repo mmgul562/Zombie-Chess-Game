@@ -107,6 +107,7 @@ class Menu:
         self.BROWN = (193, 120, 50)
         self.DARK_BROWN = (153, 90, 32)
         self.YELLOW = (255, 245, 95)
+        self.GREY = (136, 145, 153)
         self.BOARD_COLORS = ((255, 215, 175), (205, 132, 55))
         self.SEPARATOR_COLOR = (223, 178, 110)
         self.HIGHLIGHT_COLOR = (75, 200, 70, 128)
@@ -163,18 +164,19 @@ class Menu:
         text_rect = text_surface.get_rect(center=(x, y))
         self.screen.blit(text_surface, text_rect)
 
-    def draw_section_row(self, section_name, description, y_pos, buttons_info):
-        self.draw_section_text(section_name, self.LIGHT_BROWN, self.left_section_x, y_pos)
+    def draw_section_row(self, section_name, description, y_pos, buttons_info, disabled=False):
+        text_color = self.LIGHT_BROWN if not disabled else self.GREY
+        self.draw_section_text(section_name, text_color, self.left_section_x, y_pos)
 
-        self.draw_text(str(description), self.LIGHT_BROWN, self.middle_section_x, y_pos)
+        self.draw_text(str(description), text_color, self.middle_section_x, y_pos)
 
         buttons = []
-        for i, (text, width) in enumerate(buttons_info):
+        for i, (text, width, button_disabled) in enumerate(buttons_info):
             x_offset = self.right_section_x - self.middle_section_x + (i * int(self.small_button_width * 1.2))
             btn = self.draw_button(text, y_pos,
                                    width=width or self.small_button_width,
                                    height=self.small_button_height,
-                                   x_offset=x_offset)
+                                   x_offset=x_offset, disabled=button_disabled)
             buttons.append(btn)
         return buttons
 
@@ -187,7 +189,7 @@ class Menu:
             self.separator_thickness
         )
 
-    def draw_button(self, text, y, x=None, width=None, height=None, x_offset=0):
+    def draw_button(self, text, y, x=None, width=None, height=None, x_offset=0, disabled=False):
         if width is None:
             width = self.button_width
         if height is None:
@@ -222,11 +224,13 @@ class Menu:
 
         scaled_rect = pygame.Rect(scaled_x, scaled_y, scaled_width, scaled_height)
 
+        color = self.YELLOW if not disabled else self.GREY
+
         try:
-            pygame.draw.rect(self.screen, self.YELLOW, scaled_rect, border_radius=10)
+            pygame.draw.rect(self.screen, color, scaled_rect, border_radius=10)
             pygame.draw.rect(self.screen, self.LIGHT_BROWN, scaled_rect, 2, border_radius=10)
         except TypeError:
-            pygame.draw.rect(self.screen, self.YELLOW, scaled_rect)
+            pygame.draw.rect(self.screen, color, scaled_rect)
             pygame.draw.rect(self.screen, self.LIGHT_BROWN, scaled_rect, 2)
 
         scaled_font = pygame.font.Font('util/Roboto-Regular.ttf',
@@ -325,17 +329,20 @@ class Menu:
         board_width = square_size * 8
         board_height = square_size * board_y
         board_start_x = (self.screen_width // 2) - (board_width // 2)
-        board_start_y = (self.screen_height - base_board_height) // 4
+        board_start_y = (self.screen_height - board_height) // 4
 
         piece_selector_width = int(self.screen_width * 0.1)
         sections_gap = int(self.screen_width * 0.3) // 4
         settings_x = board_start_x + board_width + sections_gap
         piece_selector_x = board_start_x - piece_selector_width - sections_gap
 
-        add_board_height_btn = self.draw_button('+', board_start_y + base_board_height // 2 - self.font.get_height() * 1.5,
+        add_board_height_btn = self.draw_button('+',
+                                                board_start_y + base_board_height // 2 - self.font.get_height() * 1.5,
                                                 width=self.small_button_width, x=settings_x)
-        self.draw_text(str(board_y), self.LIGHT_BROWN, add_board_height_btn.centerx, board_start_y + base_board_height // 2)
-        rm_board_height_btn = self.draw_button('-', board_start_y + base_board_height // 2 + self.font.get_height() * 1.5,
+        self.draw_text(str(board_y), self.LIGHT_BROWN, add_board_height_btn.centerx,
+                       board_start_y + base_board_height // 2)
+        rm_board_height_btn = self.draw_button('-',
+                                               board_start_y + base_board_height // 2 + self.font.get_height() * 1.5,
                                                width=self.small_button_width, x=settings_x)
 
         pygame.draw.rect(self.screen, self.DARK_BROWN,
@@ -394,10 +401,10 @@ class Menu:
 
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
         clear_board_btn = self.draw_button('Clear Board', self.bottom_margin)
-        save_btn = self.draw_button('Save', self.bottom_margin, x_offset=right_offset)
+        next_btn = self.draw_button('Next', self.bottom_margin, x_offset=right_offset)
 
         return {
-            'board_area': pygame.Rect(board_start_x, board_start_y, base_board_height, base_board_height),
+            'board_area': pygame.Rect(board_start_x, board_start_y, board_width, board_height),
             'square_size': square_size,
             'board_start': (board_start_x, board_start_y),
             'pieces': [(piece, pygame.Rect(
@@ -408,34 +415,62 @@ class Menu:
             'buttons': {
                 'add_board_height': add_board_height_btn,
                 'rm_board_height': rm_board_height_btn,
-                'save': save_btn,
+                'next': next_btn,
                 'clear': clear_board_btn,
                 'back': go_back_btn
             }
         }
 
-    def save_custom_menu(self, game_mode, difficulty):
+    def save_custom_menu(self, game_mode, difficulty, gm_disabled, difficulty_disabled, name, is_focused):
         self.screen.fill(self.BROWN)
-        self.draw_main_text('Choose Default Settings', self.LIGHT_BROWN)
+        self.draw_main_text('Settings', self.LIGHT_BROWN)
 
         first_section_y = self.content_start_y
         second_section_y = first_section_y + self.section_spacing
-        third_section_y = second_section_y + 2 * self.section_spacing
+        third_section_y = second_section_y + self.section_spacing
+        fourth_section_y = third_section_y + int(1.25 * self.section_spacing)
+        fifth_section_y = fourth_section_y + self.section_spacing
 
         change_game_mode_btn, disable_game_mode_btn = self.draw_section_row(
             'Base Game Mode', game_mode, first_section_y,
-            [('>', None), ('X', None)]
+            [('>', None, gm_disabled), ('X', None, False)],
+            disabled=gm_disabled
         )
         self.draw_separator(first_section_y + self.element_spacing // 2)
 
         change_difficulty_btn, disable_difficulty_btn = self.draw_section_row(
             'Difficulty', difficulty, second_section_y,
-            [('>', None), ('X', None)]
+            [('>', None, difficulty_disabled), ('X', None, False)],
+            disabled=difficulty_disabled
         )
         self.draw_separator(second_section_y + self.element_spacing // 2)
 
-        self.draw_section_text('If you use default settings, users will not be able to change them', self.LIGHT_BROWN,
+        self.draw_section_text('Specifying a setting here will disallow any changes to that setting later',
+                               self.LIGHT_BROWN,
                                self.screen_width // 2, third_section_y)
+
+        # name
+        input_color = self.DARK_BROWN
+        if not name:
+            name = 'Name'
+            input_color = self.GREY
+        input_width = self.screen_width * 0.6
+        input_height = self.font.get_height() * 1.5
+        input_start_x = self.screen_width // 2 - input_width // 2
+        if is_focused:
+            pygame.draw.rect(self.screen, self.HIGHLIGHT_COLOR,
+                             (input_start_x - 2, fourth_section_y - 2, input_width + 4, input_height + 4), 6)
+        else:
+            pygame.draw.rect(self.screen, self.SEPARATOR_COLOR,
+                             (input_start_x, fourth_section_y, input_width, input_height), 4)
+        input_rect = pygame.Rect(input_start_x + 4, fourth_section_y + 4, input_width - 8, input_height - 8)
+        pygame.draw.rect(self.screen, self.LIGHT_BROWN, input_rect)
+        text_surface = self.font.render(name, True, input_color)
+        self.screen.blit(text_surface, (input_rect.x + 5, input_rect.y + 8))
+
+        self.draw_text('Name should be at least 3 and at most 20 characters long',
+                       self.LIGHT_BROWN,
+                       self.screen_width // 2, fifth_section_y)
 
         left_offset = -int(self.screen_width * 0.3)
         right_offset = int(self.screen_width * 0.3)
@@ -443,9 +478,17 @@ class Menu:
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
         save_btn = self.draw_button('Save', self.bottom_margin, x_offset=right_offset)
 
-        buttons = (change_game_mode_btn, disable_game_mode_btn, change_difficulty_btn, disable_difficulty_btn,
-                   go_back_btn, save_btn)
-        return buttons
+        return {
+            'input_area': input_rect,
+            'buttons': {
+                'change_gm': change_game_mode_btn,
+                'disable_gm': disable_game_mode_btn,
+                'change_difficulty': change_difficulty_btn,
+                'disable_difficulty': disable_difficulty_btn,
+                'back': go_back_btn,
+                'save': save_btn
+            }
+        }
 
     def load_custom_menu(self):
         self.screen.fill(self.BROWN)
@@ -466,19 +509,19 @@ class Menu:
 
         game_mode_btn, = self.draw_section_row(
             'Game Mode', game_mode, first_section_y,
-            [('>', None)]
+            [('>', None, False)]
         )
         self.draw_separator(first_section_y + self.element_spacing // 2)
 
         difficulty_btn, = self.draw_section_row(
             'Difficulty', difficulty, second_section_y,
-            [('>', None)]
+            [('>', None, False)]
         )
         self.draw_separator(second_section_y + self.element_spacing // 2)
 
         add_btn, rm_btn = self.draw_section_row(
             'Board Height', str(board_y), third_section_y,
-            [('+', None), ('-', None)]
+            [('+', None, False), ('-', None, False)]
         )
         self.draw_separator(third_section_y + self.element_spacing // 2)
 
@@ -491,20 +534,21 @@ class Menu:
         buttons = (game_mode_btn, difficulty_btn, add_btn, rm_btn, play_btn, go_back_btn)
         return buttons
 
-    def game_over_menu(self, endgame_info):
+    def information_menu(self, main_text, first_btn_text, second_btn_text, additional_info=None):
         self.screen.fill(self.BROWN)
-        self.draw_main_text('Game Over!', self.LIGHT_BROWN)
+        self.draw_main_text(main_text, self.LIGHT_BROWN)
 
         info_y = self.content_start_y + self.element_spacing
-        self.draw_text(endgame_info, self.LIGHT_BROWN, self.screen_width // 2, info_y)
+        if additional_info:
+            self.draw_text(additional_info, self.LIGHT_BROWN, self.screen_width // 2, info_y)
 
         first_button_y = info_y + self.section_spacing
         second_button_y = first_button_y + self.button_height + self.element_spacing
 
-        restart_btn = self.draw_button('Play Again', first_button_y)
-        menu_btn = self.draw_button('Main Menu', second_button_y)
+        first_btn = self.draw_button(first_btn_text, first_button_y)
+        second_btn = self.draw_button(second_btn_text, second_button_y)
 
-        return restart_btn, menu_btn
+        return first_btn, second_btn
 
     def help_menu(self):
         self.screen.fill(self.BROWN)

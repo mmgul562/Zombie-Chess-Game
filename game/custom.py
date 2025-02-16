@@ -1,10 +1,28 @@
+import json
+import random
+import string
+from datetime import datetime
+
+from game.game_modes import GameModes, Difficulties
+
+
 class CustomGameMode:
     def __init__(self):
         self.board = [[None for _ in range(8)] for _ in range(8)]
         self.selected_piece = None
+        self.name = ''
+        self.is_focused = False
         self.board_y = 8
-        self.game_mode_enabled = True
-        self.difficulty_enabled = True
+        self.base_game_mode = GameModes.SURVIVE_THE_LONGEST
+        self.difficulty = Difficulties.NORMAL
+        self.game_mode_disabled = False
+        self.difficulty_disabled = False
+        self.error_msg = None
+
+    def reset(self):
+        self.selected_piece = None
+        self.error_msg = None
+        self.board = [[None for _ in range(8)] for _ in range(self.board_y)]
 
     def get_piece_at(self, i, j):
         return self.board[i][j]
@@ -46,3 +64,40 @@ class CustomGameMode:
                 if self.board[i][j] == 'K':
                     return True
         return False
+
+    def is_name_ok(self):
+        return 20 >= len(self.name) >= 3
+
+    def save(self):
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        random_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+        filename = f'custom_gm/{timestamp}_{random_string}.json'
+
+        data = {
+            'name': self.name,
+            'board_y': self.board_y,
+            'gm_disabled': self.game_mode_disabled,
+            'difficulty_disabled': self.difficulty_disabled,
+            'base_gm': str(self.base_game_mode),
+            'difficulty': str(self.difficulty),
+            'board': self.board
+        }
+        try:
+            with open(filename, 'w') as file:
+                json.dump(data, file, indent=4)
+        except Exception as e:
+            self.error_msg = str(e)
+
+    # def load(self, filename):
+    #     filename = f'custom_gm/{filename}'
+    #     try:
+    #         with open(filename, 'r') as file:
+    #             data = json.load(file)
+    #         return data
+    #     except FileNotFoundError:
+    #         self.error_msg = f'File {filename} not found'
+    #     except json.JSONDecodeError:
+    #         self.error_msg = f'Error decoding JSON from {filename}'
+    #     except Exception as e:
+    #         self.error_msg = str(e)
+    #     return None
