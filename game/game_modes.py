@@ -177,7 +177,7 @@ class Gameplay:
     def create_new_zombies(self, n):
         new_spots = random.sample(range(8), n)
         for i in new_spots:
-            if self.board[0][i][0] == 'K':
+            if self.board[0][i] and self.board[0][i][0] == 'K':
                 return TurnResult.CHECKMATE
             self.board[0][i] = 'z'
         return TurnResult.OK
@@ -314,7 +314,7 @@ class SurviveTheLongest(Gameplay):
     def create_new_zombies(self, n):
         new_spots = random.sample(range(8), n)
         for i in new_spots:
-            if self.board[0][i][0] == 'K':
+            if self.board[0][i] and self.board[0][i][0] == 'K':
                 return TurnResult.CHECKMATE
             self.board[0][i] = 'z'
         self.waves += 1
