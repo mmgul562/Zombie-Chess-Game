@@ -11,6 +11,8 @@ class CustomGameMode:
         self.board = [[None for _ in range(8)] for _ in range(8)]
         self.selected_piece = None
         self.name = ''
+        self.is_name_ok = False
+        self.has_king = False
         self.is_focused = False
         self.board_y = 8
         self.base_game_mode = GameModes.SURVIVE_THE_LONGEST
@@ -58,15 +60,19 @@ class CustomGameMode:
         else:
             self.board[i][j] = None
 
-    def has_king(self):
+    def check_for_king(self):
         for i in range(self.board_y):
             for j in range(8):
                 if self.board[i][j] == 'K':
-                    return True
-        return False
+                    self.has_king = True
+                    return
+        self.has_king = False
 
-    def is_name_ok(self):
-        return 20 >= len(self.name) >= 3
+    def check_name(self):
+        if 20 >= len(self.name) >= 3:
+            self.is_name_ok = True
+        else:
+            self.is_name_ok = False
 
     def save(self):
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

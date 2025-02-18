@@ -78,7 +78,7 @@ class Gameplay:
         return self.selected_piece == (row, col)
 
     def is_checkmate(self, i, j):
-        if self.board[i][j][0] == 'K':
+        if self.board[i][j] and self.board[i][j][0] == 'K':
             return True
 
     def skip_turn(self):

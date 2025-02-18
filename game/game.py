@@ -43,7 +43,7 @@ class DisplaySettings:
         for piece in pieces:
             filename = piece + '.png'
             try:
-                original_image = pygame.image.load(os.path.join('chess_pieces', filename))
+                original_image = pygame.image.load(os.path.join('img/chess_pieces', filename))
                 scaled_image = pygame.transform.scale(original_image, (self.square_size - 10, self.square_size - 10))
                 self.piece_images[piece[0]] = scaled_image
             except Exception as e:
@@ -79,13 +79,15 @@ class Game:
 
         info_object = pygame.display.Info()
         screen_width = info_object.current_w
-        screen_height = info_object.current_h - 50
-        self.display_settings = DisplaySettings(screen_width, screen_height, board_y)
-        self.screen = pygame.display.set_mode((screen_width, screen_height))
+        screen_height = info_object.current_h
+        self.screen = pygame.display.set_mode((screen_width, screen_height - 50), pygame.FULLSCREEN)
+        self.fullscreen = True
+
+        self.display_settings = DisplaySettings(screen_width, screen_height - 50, board_y)
         self.menu = Menu(self.screen, screen_width, screen_height, self.display_settings.piece_images)
         self._help_section = None
-        pygame.display.set_caption('Pawnbies')
 
+        pygame.display.set_caption('Pawnbies')
         self.current_state = GameStates.MENU
 
     @staticmethod
@@ -101,7 +103,7 @@ class Game:
 
     def draw_board(self):
         self.screen.fill(self.display_settings.BACKGROUND)
-        colors = [self.display_settings.LIGHT_COLOR, self.display_settings.DARK_COLOR]
+        colors = (self.display_settings.LIGHT_COLOR, self.display_settings.DARK_COLOR)
         for row in range(self.gameplay.board_y):
             for col in range(8):
                 color = colors[(row + col) % 2]
@@ -150,7 +152,8 @@ class Game:
                 self.current_state = GameStates.MENU
 
     def handle_create_custom_state(self, event):
-        custom_info = self.menu.create_custom_menu(self.custom.board_y, self.custom.board, self.custom.selected_piece)
+        custom_info = self.menu.create_custom_menu(self.custom.board_y, self.custom.board, self.custom.selected_piece,
+                                                   self.custom.has_king)
         square_size = custom_info['square_size']
         board_x, board_y = custom_info['board_start']
 
@@ -165,12 +168,13 @@ class Game:
                     self.custom.unselect_piece()
                     return
                 elif buttons['next'].collidepoint(mouse_pos):
-                    if self.custom.has_king():
+                    if self.custom.has_king:
                         self.current_state = GameStates.SAVE_CUSTOM
                     self.custom.unselect_piece()
                     return
                 elif buttons['clear'].collidepoint(mouse_pos):
                     self.custom.clear_board()
+                    self.custom.has_king = False
                     return
                 elif buttons['add_board_height'].collidepoint(mouse_pos):
                     self.custom.add_board_height()
@@ -187,6 +191,7 @@ class Game:
                     row = int((mouse_pos[1] - board_y) // square_size)
                     if 0 <= row < self.custom.board_y and 0 <= col < 8:
                         self.custom.put_selected_piece(row, col)
+                        self.custom.check_for_king()
 
             elif event.button == pygame.BUTTON_RIGHT:
                 if board_rect.collidepoint(mouse_pos):
@@ -194,13 +199,14 @@ class Game:
                     row = int((mouse_pos[1] - board_y) // square_size)
                     if 0 <= row < self.custom.board_y and 0 <= col < 8:
                         self.custom.rm_piece(row, col)
+                        self.custom.check_for_king()
 
     def handle_save_custom_state(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
             mouse_pos = pygame.mouse.get_pos()
             custom_info = self.menu.save_custom_menu(self.custom.base_game_mode, self.custom.difficulty,
                                                      self.custom.game_mode_disabled, self.custom.difficulty_disabled,
-                                                     self.custom.name, self.custom.is_focused)
+                                                     self.custom.name, self.custom.is_focused, self.custom.is_name_ok)
             buttons = custom_info['buttons']
             input_area = custom_info['input_area']
 
@@ -217,7 +223,7 @@ class Game:
             elif buttons['disable_difficulty'].collidepoint(mouse_pos):
                 self.custom.difficulty_disabled = False if self.custom.difficulty_disabled else True
             elif buttons['save'].collidepoint(mouse_pos):
-                if self.custom.is_name_ok():
+                if self.custom.is_name_ok:
                     self.custom.save()
                     self.current_state = GameStates.SAVING_STATUS
 
@@ -230,8 +236,11 @@ class Game:
             if self.custom.is_focused:
                 if event.key == pygame.K_BACKSPACE:
                     self.custom.name = self.custom.name[:-1]
+                    self.custom.check_name()
                 else:
-                    self.custom.name += event.unicode
+                    if len(self.custom.name) < 20:
+                        self.custom.name += event.unicode
+                    self.custom.check_name()
 
     def handle_saving_status_state(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
@@ -360,6 +369,16 @@ class Game:
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.current_state = GameStates.MENU
+                if event.key == pygame.K_F11:
+                    self.fullscreen = not self.fullscreen
+                    if self.fullscreen:
+                        self.screen = pygame.display.set_mode(
+                            (self.display_settings.screen_width, self.display_settings.screen_height),
+                            pygame.FULLSCREEN)
+                    else:
+                        self.screen = pygame.display.set_mode(
+                            (self.display_settings.screen_width, self.display_settings.screen_height),
+                            pygame.SHOWN)
 
             if self.current_state == GameStates.MENU:
                 if not self.handle_menu_state(event):
@@ -396,11 +415,12 @@ class Game:
             elif self.current_state == GameStates.CUSTOM_MENU:
                 self.menu.custom_menu()
             elif self.current_state == GameStates.CREATE_CUSTOM:
-                self.menu.create_custom_menu(self.custom.board_y, self.custom.board, self.custom.selected_piece)
+                self.menu.create_custom_menu(self.custom.board_y, self.custom.board, self.custom.selected_piece,
+                                             self.custom.has_king)
             elif self.current_state == GameStates.SAVE_CUSTOM:
                 self.menu.save_custom_menu(self.custom.base_game_mode, self.custom.difficulty,
                                            self.custom.game_mode_disabled, self.custom.difficulty_disabled,
-                                           self.custom.name, self.custom.is_focused)
+                                           self.custom.name, self.custom.is_focused, self.custom.is_name_ok)
             elif self.current_state == GameStates.SAVING_STATUS:
                 main_text = 'Success'
                 additional_info = 'Game Mode saved successfully'
@@ -420,7 +440,8 @@ class Game:
                 self.draw_board()
                 self.draw_pieces()
             elif self.current_state == GameStates.GAME_OVER:
-                self.menu.information_menu(self.gameplay.endgame_info(self.won))
+                self.menu.information_menu('Game Over', 'Try Again', 'Main Menu',
+                                           additional_info=self.gameplay.endgame_info(self.won))
 
             pygame.display.flip()
             clock.tick(60)

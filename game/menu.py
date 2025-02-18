@@ -1,5 +1,7 @@
 import pygame
 
+import random
+
 
 class ScrollableSection:
     def __init__(self, screen, rect, font, text_color):
@@ -100,17 +102,24 @@ class Menu:
         self.screen = screen
         self.screen_width = screen_width
         self.screen_height = screen_height
+        self.aspect_ratio = screen_width / screen_height
 
         self.piece_images = piece_images
+        if self.aspect_ratio == 16 / 9:
+            background_images = ['bg_blur.png', 'bg_alt_blur.png']
+            bg_index = random.randint(0, 1)
+            bg = pygame.image.load(f'img/backgrounds/16-9/{background_images[bg_index]}')
+            self.background = pygame.transform.scale(bg, (self.screen_width, self.screen_height))
 
         self.LIGHT_BROWN = (255, 248, 220)
         self.BROWN = (193, 120, 50)
         self.DARK_BROWN = (153, 90, 32)
-        self.YELLOW = (255, 245, 95)
+        self.YELLOW = (255, 244, 108)
         self.GREY = (136, 145, 153)
         self.BOARD_COLORS = ((255, 215, 175), (205, 132, 55))
         self.SEPARATOR_COLOR = (223, 178, 110)
         self.HIGHLIGHT_COLOR = (75, 200, 70, 128)
+        self.OUTLINE_COLOR = (40, 15, 5)
 
         self.scale_factor = min(screen_width, screen_height) / 1000
 
@@ -147,19 +156,57 @@ class Menu:
         self.animation_speed = 0.02
         self.current_scales = {}
 
-    def draw_main_text(self, text, color, y_pos=None):
+    def draw_background(self):
+        if self.aspect_ratio != 16 / 9:
+            self.screen.fill(self.BROWN)
+        else:
+            self.screen.blit(self.background, (0, 0))
+
+    def draw_main_text(self, text, color, outline_color=None, outline_width=4, y_pos=None):
+        x = self.screen_width // 2
         if y_pos is None:
             y_pos = self.title_y
+        if outline_color is None:
+            outline_color = self.OUTLINE_COLOR
+
+        for offset_x in range(-outline_width, outline_width + 1):
+            for offset_y in range(-outline_width, outline_width + 1):
+                if offset_x == 0 and offset_y == 0:
+                    continue
+                outline_surface = self.main_font.render(text, True, outline_color)
+                outline_rect = outline_surface.get_rect(center=(x + offset_x, y_pos + offset_y))
+                self.screen.blit(outline_surface, outline_rect)
+
         text_surface = self.main_font.render(text, True, color)
-        text_rect = text_surface.get_rect(center=(self.screen_width // 2, y_pos))
+        text_rect = text_surface.get_rect(center=(x, y_pos))
         self.screen.blit(text_surface, text_rect)
 
-    def draw_section_text(self, text, color, x, y):
+    def draw_section_text(self, text, color, x, y, outline_color=None, outline_width=3):
+        if outline_color is None:
+            outline_color = self.OUTLINE_COLOR
+
+        for offset_x in range(-outline_width, outline_width + 1):
+            for offset_y in range(-outline_width, outline_width + 1):
+                if offset_x == 0 and offset_y == 0:
+                    continue
+                outline_surface = self.section_font.render(text, True, outline_color)
+                outline_rect = outline_surface.get_rect(center=(x + offset_x, y + offset_y))
+                self.screen.blit(outline_surface, outline_rect)
+
         text_surface = self.section_font.render(text, True, color)
         text_rect = text_surface.get_rect(center=(x, y))
         self.screen.blit(text_surface, text_rect)
 
-    def draw_text(self, text, color, x, y):
+    def draw_text(self, text, color, x, y, outline_color=None, outline_width=2):
+        if outline_color:
+            for offset_x in range(-outline_width, outline_width + 1):
+                for offset_y in range(-outline_width, outline_width + 1):
+                    if offset_x == 0 and offset_y == 0:
+                        continue
+                    outline_surface = self.font.render(text, True, outline_color)
+                    outline_rect = outline_surface.get_rect(center=(x + offset_x, y + offset_y))
+                    self.screen.blit(outline_surface, outline_rect)
+
         text_surface = self.font.render(text, True, color)
         text_rect = text_surface.get_rect(center=(x, y))
         self.screen.blit(text_surface, text_rect)
@@ -168,7 +215,7 @@ class Menu:
         text_color = self.LIGHT_BROWN if not disabled else self.GREY
         self.draw_section_text(section_name, text_color, self.left_section_x, y_pos)
 
-        self.draw_text(str(description), text_color, self.middle_section_x, y_pos)
+        self.draw_text(str(description), text_color, self.middle_section_x, y_pos, outline_color=self.OUTLINE_COLOR)
 
         buttons = []
         for i, (text, width, button_disabled) in enumerate(buttons_info):
@@ -199,23 +246,25 @@ class Menu:
             x = (self.screen_width // 2) - (width // 2) + x_offset
 
         button_rect = pygame.Rect(x, y - height // 2, width, height)
-        button_id = (x, y)
+        current_scale = 1.0
+        if not disabled:
+            button_id = (x, y)
 
-        if button_id not in self.current_scales:
-            self.current_scales[button_id] = 1.0
+            if button_id not in self.current_scales:
+                self.current_scales[button_id] = 1.0
 
-        mouse_pos = pygame.mouse.get_pos()
-        is_hovered = button_rect.collidepoint(mouse_pos)
+            mouse_pos = pygame.mouse.get_pos()
+            is_hovered = button_rect.collidepoint(mouse_pos)
 
-        current_scale = self.current_scales[button_id]
-        target_scale = self.hover_scale if is_hovered else 1.0
+            current_scale = self.current_scales[button_id]
+            target_scale = self.hover_scale if is_hovered else 1.0
 
-        if current_scale < target_scale:
-            current_scale = min(current_scale + self.animation_speed, target_scale)
-        elif current_scale > target_scale:
-            current_scale = max(current_scale - self.animation_speed, target_scale)
+            if current_scale < target_scale:
+                current_scale = min(current_scale + self.animation_speed, target_scale)
+            elif current_scale > target_scale:
+                current_scale = max(current_scale - self.animation_speed, target_scale)
 
-        self.current_scales[button_id] = current_scale
+            self.current_scales[button_id] = current_scale
 
         scaled_width = int(width * current_scale)
         scaled_height = int(height * current_scale)
@@ -291,8 +340,8 @@ class Menu:
                     return None
 
     def main_menu(self):
-        self.screen.fill(self.BROWN)
-        self.draw_main_text('Zombie Chess Game', self.LIGHT_BROWN)
+        self.draw_background()
+        self.draw_main_text('Zombie Chess Game', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         first_button_y = self.content_start_y + self.element_spacing
         second_button_y = first_button_y + self.button_height + self.element_spacing
@@ -307,8 +356,8 @@ class Menu:
         return play_btn, custom_btn, help_btn, quit_btn
 
     def custom_menu(self):
-        self.screen.fill(self.BROWN)
-        self.draw_main_text('Custom Modes', self.LIGHT_BROWN)
+        self.draw_background()
+        self.draw_main_text('Custom Modes', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         first_button_y = self.content_start_y + self.element_spacing
         second_button_y = first_button_y + self.button_height + self.element_spacing
@@ -321,8 +370,8 @@ class Menu:
 
         return create_btn, load_btn, go_back_btn
 
-    def create_custom_menu(self, board_y, board, selected_piece):
-        self.screen.fill(self.BROWN)
+    def create_custom_menu(self, board_y, board, selected_piece, has_king):
+        self.draw_background()
 
         base_board_height = self.screen_height * 0.7
         square_size = min(base_board_height // board_y, (self.screen_width * 0.5) // 8)
@@ -401,7 +450,7 @@ class Menu:
 
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
         clear_board_btn = self.draw_button('Clear Board', self.bottom_margin)
-        next_btn = self.draw_button('Next', self.bottom_margin, x_offset=right_offset)
+        next_btn = self.draw_button('Next', self.bottom_margin, x_offset=right_offset, disabled=not has_king)
 
         return {
             'board_area': pygame.Rect(board_start_x, board_start_y, board_width, board_height),
@@ -421,9 +470,9 @@ class Menu:
             }
         }
 
-    def save_custom_menu(self, game_mode, difficulty, gm_disabled, difficulty_disabled, name, is_focused):
-        self.screen.fill(self.BROWN)
-        self.draw_main_text('Settings', self.LIGHT_BROWN)
+    def save_custom_menu(self, game_mode, difficulty, gm_disabled, difficulty_disabled, name, is_focused, name_ok):
+        self.draw_background()
+        self.draw_main_text('Settings', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         first_section_y = self.content_start_y
         second_section_y = first_section_y + self.section_spacing
@@ -476,7 +525,7 @@ class Menu:
         right_offset = int(self.screen_width * 0.3)
 
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
-        save_btn = self.draw_button('Save', self.bottom_margin, x_offset=right_offset)
+        save_btn = self.draw_button('Save', self.bottom_margin, x_offset=right_offset, disabled=not name_ok)
 
         return {
             'input_area': input_rect,
@@ -491,8 +540,8 @@ class Menu:
         }
 
     def load_custom_menu(self):
-        self.screen.fill(self.BROWN)
-        self.draw_main_text('Load Custom Mode', self.LIGHT_BROWN)
+        self.draw_background()
+        self.draw_main_text('Load Custom Mode', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         left_offset = -int(self.screen_width * 0.3)
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
@@ -500,8 +549,8 @@ class Menu:
         return go_back_btn
 
     def game_settings_menu(self, game_mode, difficulty, board_y):
-        self.screen.fill(self.BROWN)
-        self.draw_main_text('Play', self.LIGHT_BROWN)
+        self.draw_background()
+        self.draw_main_text('Play', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         first_section_y = self.content_start_y
         second_section_y = first_section_y + self.section_spacing
@@ -535,8 +584,8 @@ class Menu:
         return buttons
 
     def information_menu(self, main_text, first_btn_text, second_btn_text, additional_info=None):
-        self.screen.fill(self.BROWN)
-        self.draw_main_text(main_text, self.LIGHT_BROWN)
+        self.draw_background()
+        self.draw_main_text(main_text, self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         info_y = self.content_start_y + self.element_spacing
         if additional_info:
@@ -551,8 +600,8 @@ class Menu:
         return first_btn, second_btn
 
     def help_menu(self):
-        self.screen.fill(self.BROWN)
-        self.draw_main_text('Help', self.LIGHT_BROWN)
+        self.draw_background()
+        self.draw_main_text('Help', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         content_rect = pygame.Rect(
             int(self.screen_width * 0.1),
@@ -627,8 +676,8 @@ class Menu:
         return help_section, go_back_btn
 
     def update_help_menu(self, scrollable_section):
-        self.screen.fill(self.BROWN)
-        self.draw_main_text('Help', self.LIGHT_BROWN)
+        self.draw_background()
+        self.draw_main_text('Help', self.LIGHT_BROWN, self.OUTLINE_COLOR)
         left_offset = -int(self.screen_width * 0.3)
         self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
         scrollable_section.draw()
