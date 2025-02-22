@@ -3,7 +3,7 @@ import random
 import string
 from datetime import datetime
 
-from game.game_modes import GameModes, Difficulties
+from game.game_modes import GameMode, Difficulty
 
 
 class CustomGameMode:
@@ -15,8 +15,8 @@ class CustomGameMode:
         self.has_king = False
         self.is_focused = False
         self.board_y = 8
-        self.base_game_mode = GameModes.SURVIVE_THE_LONGEST
-        self.difficulty = Difficulties.NORMAL
+        self.base_game_mode = GameMode.SURVIVE_THE_LONGEST
+        self.difficulty = Difficulty.NORMAL
         self.game_mode_disabled = False
         self.difficulty_disabled = False
         self.error_msg = None
@@ -63,7 +63,7 @@ class CustomGameMode:
     def check_for_king(self):
         for i in range(self.board_y):
             for j in range(8):
-                if self.board[i][j] == 'K':
+                if self.board[i][j] and self.board[i][j][1] == 'K':
                     self.has_king = True
                     return
         self.has_king = False

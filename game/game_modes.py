@@ -2,7 +2,7 @@ import random
 from enum import Enum
 
 
-class GameModes(Enum):
+class GameMode(Enum):
     SURVIVE_THE_LONGEST = 1
     CAPTURE_THE_MOST = 2
     BLOCK_THE_BORDER = 3
@@ -19,23 +19,23 @@ class GameModes(Enum):
             return 'Block And Clear'
 
     def switch(self):
-        game_modes = list(GameModes)
+        game_modes = list(GameMode)
         current_index = game_modes.index(self)
         next_index = (current_index + 1) % len(game_modes)
         return game_modes[next_index]
 
 
-class Difficulties(Enum):
+class Difficulty(Enum):
     EASY = 1
-    NORMAL = 1.5
-    HARD = 2
-    EXTREME = 3
+    NORMAL = 2
+    HARD = 3
+    EXTREME = 4
 
     def __str__(self):
         return self.name.capitalize()
 
     def switch(self):
-        difficulties = list(Difficulties)
+        difficulties = list(Difficulty)
         current_index = difficulties.index(self)
         next_index = (current_index + 1) % len(difficulties)
         return difficulties[next_index]
@@ -43,20 +43,23 @@ class Difficulties(Enum):
 
 class TurnResult(Enum):
     OK = 1
-    WRONG = 2
-    WIN = 3
-    CHECKMATE = 4
+    CAPTURED = 2
+    WRONG = 3
+    WIN = 4
+    CHECKMATE = 5
 
 
 class Gameplay:
     def __init__(self, board_y, difficulty):
+        self.zombie_spots = set({})
         self.board = [
             [None for _ in range(8)] for _ in range(board_y - 2)
         ]
-        self.board.append([f'p{i}' for i in range(8)])
-        self.board.append(['r0', 'k0', 'b0', 'q', 'K', 'b1', 'k1', 'r1'])
+        self.board.append([f'pp{i}' for i in range(8)])
+        self.board.append(['pr8', 'pk9', 'pb10', 'pq11', 'pK12', 'pb13', 'pk14', 'pr15'])
         self.selected_piece = None
         self.last_moved_piece = None
+        self.turns_taken = 0
         self.can_do_castling = True
         self.board_y = board_y
         self.difficulty = difficulty
@@ -65,8 +68,7 @@ class Gameplay:
         return self.board[row][col]
 
     def select_piece(self, row, col):
-        piece = self.board[row][col]
-        if piece and piece != 'z' and piece != self.last_moved_piece:
+        if self.is_piece(row, col) and self.board[row][col] != self.last_moved_piece:
             self.selected_piece = (row, col)
             return True
         return False
@@ -74,12 +76,20 @@ class Gameplay:
     def unselect_piece(self):
         self.selected_piece = None
 
+    def is_zombie(self, row, col):
+        return self.board[row][col] and self.board[row][col][0] == 'z'
+
+    def is_piece(self, row, col):
+        return self.board[row][col] and self.board[row][col][0] == 'p'
+
+    def is_pawn(self, row, col):
+        return self.board[row][col] and self.board[row][col][0:2] == 'pp'
+
     def is_selected(self, row, col):
         return self.selected_piece == (row, col)
 
     def is_checkmate(self, i, j):
-        if self.board[i][j] and self.board[i][j][0] == 'K':
-            return True
+        return self.board[i][j] and self.board[i][j][0:2] == 'pK'
 
     def skip_turn(self):
         self.last_moved_piece = None
@@ -87,139 +97,286 @@ class Gameplay:
             return TurnResult.CHECKMATE
         return TurnResult.OK
 
-    def promote_pawn(self, row, col, piece):
-        if self.board[row][col] is None:
+    def promote_pawn(self, row, col, piece_type):
+        if not self.is_pawn(row, col):
             return False
-        pawn_idx = int(self.board[row][col][1])
-        self.board[row][col] = f'{piece}{pawn_idx + 2}'
+
+        pawn_idx = self.board[row][col][2]
+        self.board[row][col] = f'{piece_type}{pawn_idx}'
         return True
 
     def is_valid_move(self, start_row, start_col, end_row, end_col):
-        if self.board[end_row][end_col] != 'z' and self.board[end_row][end_col]:
+        if self.is_piece(end_row, end_col) or not self.is_piece(start_row, start_col):
             return False
 
-        piece = self.board[start_row][start_col]
-        if piece is None or piece == 'z':
-            return False
-        piece = piece[0]
-        if piece == 'p':
+        piece_type = self.board[start_row][start_col][1]
+        if piece_type == 'p':
             return self.check_pawn_move(start_row, start_col, end_row, end_col)
-        elif piece == 'r':
+        elif piece_type == 'r':
             if self.check_rook_move(start_row, start_col, end_row, end_col):
                 self.can_do_castling = False
                 return True
             return False
-        elif piece == 'k':
+        elif piece_type == 'k':
             return self.check_knight_move(start_row, start_col, end_row, end_col)
-        elif piece == 'b':
+        elif piece_type == 'b':
             return self.check_bishop_move(start_row, start_col, end_row, end_col)
-        elif piece == 'q':
+        elif piece_type == 'q':
             return self.check_queen_move(start_row, start_col, end_row, end_col)
-        elif piece == 'K':
+        elif piece_type == 'K':
             if self.check_king_move(start_row, start_col, end_row, end_col):
                 self.can_do_castling = False
                 return True
             return False
+        return False
 
     def move_piece(self, start_row, start_col, end_row, end_col):
         if self.is_valid_move(start_row, start_col, end_row, end_col):
-            self.board[end_row][end_col] = self.board[start_row][start_col]
+            if self.board[end_row][end_col] == 'ze':
+                self.board[end_row][end_col] = self.board[start_row][start_col]
+                self.activate_exploding_zombie(end_row, end_col)
+            else:
+                self.board[end_row][end_col] = self.board[start_row][start_col]
             self.board[start_row][start_col] = None
-            if self.move_wave() == TurnResult.CHECKMATE:
+            self.turns_taken += 1
+            result = self.move_wave()
+            if result == TurnResult.CHECKMATE:
                 return TurnResult.CHECKMATE
-            if self.difficulty != Difficulties.EASY:
+            elif result == TurnResult.WIN:
+                return TurnResult.WIN
+            if self.difficulty != Difficulty.EASY:
                 self.last_moved_piece = self.board[end_row][end_col]
             return TurnResult.OK
 
         castling_move = self.check_castling_move(start_row, start_col, end_col)
         if castling_move:
+            self.turns_taken += 1
             self.board[start_row][start_col] = None
             self.board[end_row][end_col] = None
-            self.board[start_row][castling_move[0]] = 'K'
-            self.board[start_row][castling_move[1]] = f'r{castling_move[2]}'
+            self.board[start_row][castling_move[0]] = 'pK12'
+            self.board[start_row][castling_move[1]] = f'pr{castling_move[2]}'
             if self.move_wave() == TurnResult.CHECKMATE:
                 return TurnResult.CHECKMATE
-            if self.difficulty != Difficulties.EASY:
-                self.last_moved_piece = 'K'
+            if self.difficulty != Difficulty.EASY:
+                self.last_moved_piece = 'pK12'
             return TurnResult.OK
 
         return TurnResult.WRONG
 
     def move_wave(self):
+        moved_zombies = set()
         for i in reversed(range(self.board_y)):
             for j in reversed(range(8)):
-                if self.board[i][j] != 'z':
+                if self.board[i][j] is None or self.is_piece(i, j) or (i, j) in moved_zombies:
                     continue
 
-                move = self.check_zombie_collision(i, j)
-                if move is None:
-                    continue
-                elif move[0] == 'd':
-                    if self.is_checkmate(i + 1, j):
-                        return TurnResult.CHECKMATE
-                    self.board[i + 1][j] = 'z'
-                    if move[1] == 'm':
-                        self.board[i][j] = None
-                elif move[0] == 'r':
-                    if self.is_checkmate(i, j + 1):
-                        return TurnResult.CHECKMATE
-                    self.board[i][j + 1] = 'z'
-                    if move[1] == 'm':
-                        self.board[i][j] = None
+                zombie = self.board[i][j][1]
+                pos = None
+
+                result = TurnResult.OK
+                if zombie == 'w':
+                    result, pos = self.move_walker(i, j)
+                elif zombie == 's':
+                    result, pos = self.move_stomper(i, j)
+                elif zombie == 'e':
+                    result, pos = self.move_exploding(i, j)
+                elif zombie == 'i':
+                    result, pos = self.move_infected(i, j)
+
+                if result == TurnResult.CHECKMATE:
+                    return TurnResult.CHECKMATE
+                moved_zombies.add(pos)
+        return self.create_new_zombies(random.randint(0, self.difficulty.value))
+
+    def move_walker(self, i, j):
+        captured = False
+        pos = None
+        if i + 1 == self.board_y or self.is_zombie(i + 1, j):  # down occupied, go right
+            if j + 1 == 8 or self.is_zombie(i, j + 1):  # right occupied, go left
+                if self.is_zombie(i, j - 1):  # all sides occupied
+                    return TurnResult.OK, None
                 else:
                     if self.is_checkmate(i, j - 1):
-                        return TurnResult.CHECKMATE
-                    self.board[i][j - 1] = 'z'
-                    if move[1] == 'm':
+                        return TurnResult.CHECKMATE, None
+                    if self.board[i][j - 1]:
+                        captured = True
+                    self.board[i][j - 1] = 'zw'
+                    self.board[i][j] = None
+                    pos = (i, j - 1)
+            else:
+                if self.is_checkmate(i, j + 1):
+                    return TurnResult.CHECKMATE, None
+                if self.board[i][j + 1]:
+                    captured = True
+                self.board[i][j + 1] = 'zw'
+                self.board[i][j] = None
+                pos = (i, j + 1)
+        else:
+            if self.is_checkmate(i + 1, j):
+                return TurnResult.CHECKMATE, None
+            if self.board[i + 1][j]:
+                captured = True
+            self.board[i + 1][j] = 'zw'
+            self.board[i][j] = None
+            pos = (i + 1, j)
+
+        result = TurnResult.CAPTURED if captured else TurnResult.OK
+        return result, pos
+
+    # if captures a piece, can move again (up to 3 times)
+    def move_stomper(self, i, j, moves_left=3):
+        if moves_left <= 0:
+            return TurnResult.OK, None
+        captured = False
+        new_i, new_j = i, j
+        if i + 1 == self.board_y or self.is_zombie(i + 1, j):  # down occupied, go right
+            if j + 1 == 8 or self.is_zombie(i, j + 1):  # right occupied, go left
+                if j - 1 == -1 or self.is_zombie(i, j - 1):  # all sides occupied
+                    return TurnResult.OK, None
+                else:
+                    if self.is_checkmate(i, j - 1):
+                        return TurnResult.CHECKMATE, None
+                    if self.board[i][j - 1]:
+                        captured = True
+                        new_i, new_j = i, j - 1
+                    self.board[i][j - 1] = 'zs'
+                    self.board[i][j] = None
+            else:
+                if self.is_checkmate(i, j + 1):
+                    return TurnResult.CHECKMATE, None
+                if self.board[i][j + 1]:
+                    captured = True
+                    new_i, new_j = i, j + 1
+                self.board[i][j + 1] = 'zs'
+                self.board[i][j] = None
+        else:
+            if self.is_checkmate(i + 1, j):
+                return TurnResult.CHECKMATE, None
+            if self.board[i + 1][j]:
+                captured = True
+                new_i, new_j = i + 1, j
+            self.board[i + 1][j] = 'zs'
+            self.board[i][j] = None
+
+        if captured and moves_left > 1:
+            chain_result, pos = self.move_stomper(new_i, new_j, moves_left - 1)
+            if chain_result == TurnResult.CHECKMATE:
+                return TurnResult.CHECKMATE, None
+            return TurnResult.CAPTURED, pos
+
+        result = TurnResult.CAPTURED if captured else TurnResult.OK
+        return result, (new_i, new_j)
+
+    def move_exploding(self, i, j):
+        directions = [
+            (-1, -1), (-1, 0), (-1, 1),
+            (0, -1),           (0, 1),
+            (1, -1),  (1, 0),  (1, 1)
+        ]
+        random.shuffle(directions)
+
+        for di, dj in directions:
+            new_i, new_j = i + di, j + dj
+            if 0 <= new_i < self.board_y and 0 <= new_j < 8:
+                if not self.is_zombie(new_i, new_j):
+                    if self.is_checkmate(new_i, new_j):
+                        return TurnResult.CHECKMATE, None
+                    captured = False
+                    if self.board[new_i][new_j]:
+                        captured = True
+                    self.board[new_i][new_j] = 'ze'
+                    self.board[i][j] = None
+
+                    result = TurnResult.CAPTURED if captured else TurnResult.OK
+                    return result, (new_i, new_j)
+        return TurnResult.OK
+
+    def move_infected(self, i, j):
+        captured = False
+        pos = None
+        if i + 1 == self.board_y or self.is_zombie(i + 1, j):  # down occupied, go right
+            if j + 1 == 8 or self.is_zombie(i, j + 1):  # right occupied, go left
+                if j - 1 == -1 or self.is_zombie(i, j - 1):  # all sides occupied
+                    return TurnResult.OK, None
+                else:
+                    if self.is_checkmate(i, j - 1):
+                        return TurnResult.CHECKMATE, None
+                    if self.board[i][j - 1]:
+                        captured = True
+                        self.board[i][j - 1] = 'zw'
+                    else:
                         self.board[i][j] = None
-        return self.create_new_zombies(random.randint(0, int(self.difficulty.value)))
+                        self.board[i][j - 1] = 'zi'
+                    pos = (i, j - 1)
+            else:
+                if self.is_checkmate(i, j + 1):
+                    return TurnResult.CHECKMATE, None
+                if self.board[i][j + 1]:
+                    captured = True
+                    self.board[i][j + 1] = 'zw'
+                else:
+                    self.board[i][j] = None
+                    self.board[i][j + 1] = 'zi'
+                pos = (i, j + 1)
+        else:
+            if self.is_checkmate(i + 1, j):
+                return TurnResult.CHECKMATE, None
+            if self.board[i + 1][j]:
+                captured = True
+                self.board[i + 1][j] = 'zw'
+            else:
+                self.board[i][j] = None
+                self.board[i + 1][j] = 'zi'
+            pos = (i + 1, j)
+
+        result = TurnResult.CAPTURED if captured else TurnResult.OK
+        return result, pos
 
     def create_new_zombies(self, n):
         new_spots = random.sample(range(8), n)
         for i in new_spots:
-            if self.board[0][i] and self.board[0][i][0] == 'K':
+            if self.is_checkmate(0, i):
                 return TurnResult.CHECKMATE
-            self.board[0][i] = 'z'
+
+            zombie_chance = random.randint(1, 100)
+            if zombie_chance <= 10:
+                self.board[0][i] = 'ze'
+            elif 10 < zombie_chance <= 20:
+                self.board[0][i] = 'zs'
+            elif 20 < zombie_chance <= 50:
+                self.board[0][i] = 'zi'
+            else:
+                self.board[0][i] = 'zw'
         return TurnResult.OK
 
-    def check_zombie_collision(self, i, j):
-        # check down
-        if i + 1 == self.board_y or self.board[i + 1][j] == 'z':
-            # down occupied, go right
-            if j + 1 == 8 or self.board[i][j + 1] == 'z':
-                # right occupied, go left
-                if j - 1 == -1 or self.board[i][j - 1] == 'z':
-                    # all sides occupied
-                    return None
-                else:
-                    if self.board[i][j - 1] is None:
-                        return 'lm'
-                    return 'lc'
-            else:
-                if self.board[i][j + 1] is None:
-                    return 'rm'
-                return 'rc'
-        else:
-            if self.board[i + 1][j] is None:
-                return 'dm'
-            return 'dc'
+    def activate_exploding_zombie(self, row, col):
+        #      up
+        # left ze  right
+        #     down
+        if row - 1 >= 0:
+            self.board[row - 1][col] = None
+        if row + 1 < self.board_y:
+            self.board[row + 1][col] = None
+        if col - 1 >= 0:
+            self.board[row][col - 1] = None
+        if col + 1 < 8:
+            self.board[row][col + 1] = None
 
     def check_castling_move(self, row, start_col, end_col):
         if not self.can_do_castling:
             return None
-
         start_piece = self.board[row][start_col]
         end_piece = self.board[row][end_col]
         if start_piece is None or end_piece is None:
             return None
 
-        valid_combinations = (
-            ('r0', 'K'),
-            ('r1', 'K'),
-            ('K', 'r0'),
-            ('K', 'r1')
+        combinations = (
+            ('pK12', 'pr8'),
+            ('pK12', 'pr15'),
+            ('pr8', 'pK12'),
+            ('pr15', 'pK12'),
         )
-        if (start_piece, end_piece) not in valid_combinations:
+        if (start_piece, end_piece) not in combinations:
             return None
 
         step = 1 if end_col > start_col else -1
@@ -229,11 +386,11 @@ class Gameplay:
 
         self.can_do_castling = False
         # king pos, rook pos, rook index
-        if start_piece == 'r0':
+        if start_piece == 'pr8':
             return end_col - 2, end_col - 1, 0
-        if start_piece == 'r1':
+        if start_piece == 'pr15':
             return end_col + 2, end_col + 1, 1
-        if end_piece == 'r0':
+        if end_piece == 'pr8':
             return start_col - 2, start_col - 1, 0
         return start_col + 2, start_col + 1, 1
 
@@ -251,8 +408,7 @@ class Gameplay:
             return False
 
         elif abs(start_col - end_col) == 1 and start_row + move_direction == end_row:
-            target_piece = self.board[end_row][end_col]
-            return target_piece == 'z'
+            return self.is_zombie(end_row, end_col)
         return False
 
     def check_rook_move(self, start_row, start_col, end_row, end_col):
@@ -309,15 +465,25 @@ class SurviveTheLongest(Gameplay):
     def __init__(self, board_y, difficulty):
         super().__init__(board_y, difficulty)
         self.waves = 0
-        self.game_mode = GameModes.SURVIVE_THE_LONGEST
+        self.game_mode = GameMode.SURVIVE_THE_LONGEST
 
     def create_new_zombies(self, n):
         new_spots = random.sample(range(8), n)
         for i in new_spots:
-            if self.board[0][i] and self.board[0][i][0] == 'K':
+            if self.is_checkmate(0, i):
                 return TurnResult.CHECKMATE
-            self.board[0][i] = 'z'
-        self.waves += 1
+
+            zombie_chance = random.randint(1, 100)
+            if zombie_chance <= 10:
+                self.board[0][i] = 'ze'
+            elif 10 < zombie_chance <= 20:
+                self.board[0][i] = 'zs'
+            elif 20 < zombie_chance <= 50:
+                self.board[0][i] = 'zi'
+            else:
+                self.board[0][i] = 'zw'
+        if new_spots > 0:
+            self.waves += 1
         return TurnResult.OK
 
     def endgame_info(self, won):
@@ -328,17 +494,17 @@ class CaptureTheMost(Gameplay):
     def __init__(self, board_y, difficulty):
         super().__init__(board_y, difficulty)
         self.captured = 0
-        self.game_mode = GameModes.CAPTURE_THE_MOST
+        self.game_mode = GameMode.CAPTURE_THE_MOST
 
     def move_piece(self, start_row, start_col, end_row, end_col):
         if self.is_valid_move(start_row, start_col, end_row, end_col):
-            if self.board[end_row][end_col] == 'z':
+            if self.is_zombie(end_row, end_col):
                 self.captured += 1
             self.board[end_row][end_col] = self.board[start_row][start_col]
             self.board[start_row][start_col] = None
             if self.move_wave() == TurnResult.CHECKMATE:
                 return TurnResult.CHECKMATE
-            if self.difficulty != Difficulties.EASY:
+            if self.difficulty != Difficulty.EASY:
                 self.last_moved_piece = self.board[end_row][end_col]
             return TurnResult.OK
 
@@ -346,12 +512,12 @@ class CaptureTheMost(Gameplay):
         if castling_move:
             self.board[start_row][start_col] = None
             self.board[end_row][end_col] = None
-            self.board[start_row][castling_move[0]] = 'K'
-            self.board[start_row][castling_move[1]] = f'r{castling_move[2]}'
+            self.board[start_row][castling_move[0]] = 'pK12'
+            self.board[start_row][castling_move[1]] = f'pr{castling_move[2]}'
             if self.move_wave() == TurnResult.CHECKMATE:
                 return TurnResult.CHECKMATE
-            if self.difficulty != Difficulties.EASY:
-                self.last_moved_piece = 'K'
+            if self.difficulty != Difficulty.EASY:
+                self.last_moved_piece = 'pK12'
             return TurnResult.OK
 
         return TurnResult.WRONG
@@ -363,93 +529,64 @@ class CaptureTheMost(Gameplay):
 class BlockTheBorder(Gameplay):
     def __init__(self, board_y, difficulty):
         super().__init__(board_y, difficulty)
-        self.turns_taken = 0
         self.pieces_left = 16
-        self.game_mode = GameModes.BLOCK_THE_BORDER
+        self.game_mode = GameMode.BLOCK_THE_BORDER
 
     def get_free_border_spots(self):
         free_spots = []
+        zombie_spots = []
         for i in range(8):
             if self.board[0][i] is None:
                 free_spots.append(i)
-        return free_spots
-
-    def move_piece(self, start_row, start_col, end_row, end_col):
-        if self.is_valid_move(start_row, start_col, end_row, end_col):
-            self.board[end_row][end_col] = self.board[start_row][start_col]
-            self.board[start_row][start_col] = None
-            self.turns_taken += 1
-            result = self.move_wave()
-            if result == TurnResult.CHECKMATE:
-                return TurnResult.CHECKMATE
-            elif result == TurnResult.WIN:
-                return TurnResult.WIN
-            if self.difficulty != Difficulties.EASY:
-                self.last_moved_piece = self.board[end_row][end_col]
-            return TurnResult.OK
-
-        castling_move = self.check_castling_move(start_row, start_col, end_col)
-        if castling_move:
-            self.board[start_row][start_col] = None
-            self.board[end_row][end_col] = None
-            self.board[start_row][castling_move[0]] = 'K'
-            self.board[start_row][castling_move[1]] = f'r{castling_move[2]}'
-            self.turns_taken += 1
-            result = self.move_wave()
-            if result == TurnResult.CHECKMATE:
-                return TurnResult.CHECKMATE
-            elif result == TurnResult.WIN:
-                return TurnResult.WIN
-            if self.difficulty != Difficulties.EASY:
-                self.last_moved_piece = 'K'
-            return TurnResult.OK
-
-        return TurnResult.WRONG
+            elif self.is_zombie(0, i):
+                zombie_spots.append(i)
+        return free_spots, zombie_spots
 
     def move_wave(self):
+        moved_zombies = set()
         for i in reversed(range(self.board_y)):
             for j in reversed(range(8)):
-                if self.board[i][j] != 'z':
+                if self.board[i][j] is None or self.is_piece(i, j) or (i, j) in moved_zombies:
                     continue
 
-                move = self.check_zombie_collision(i, j)
-                if move is None:
-                    continue
-                elif move[0] == 'd':
-                    if self.is_checkmate(i + 1, j):
-                        return TurnResult.CHECKMATE
-                    self.board[i + 1][j] = 'z'
-                    if move[1] == 'm':
-                        self.board[i][j] = None
-                    else:
-                        self.pieces_left -= 1
-                elif move[0] == 'r':
-                    if self.is_checkmate(i, j + 1):
-                        return TurnResult.CHECKMATE
-                    self.board[i][j + 1] = 'z'
-                    if move[1] == 'm':
-                        self.board[i][j] = None
-                    else:
-                        self.pieces_left -= 1
-                else:
-                    if self.is_checkmate(i, j - 1):
-                        return TurnResult.CHECKMATE
-                    self.board[i][j - 1] = 'z'
-                    if move[1] == 'm':
-                        self.board[i][j] = None
-                    else:
-                        self.pieces_left -= 1
+                zombie = self.board[i][j][1]
+                pos = None
+
+                result = TurnResult.OK
+                if zombie == 'w':
+                    result, pos = self.move_walker(i, j)
+                elif zombie == 's':
+                    result, pos = self.move_stomper(i, j)
+                elif zombie == 'e':
+                    result, pos = self.move_exploding(i, j)
+                elif zombie == 'i':
+                    result, pos = self.move_infected(i, j)
+
+                if result == TurnResult.CAPTURED:
+                    self.pieces_left -= 1
+                elif result == TurnResult.CHECKMATE:
+                    return TurnResult.CHECKMATE
+                moved_zombies.add(pos)
+
         if self.pieces_left < 8:
             return TurnResult.CHECKMATE
-        return self.create_new_zombies(random.randint(0, int(self.difficulty.value)))
+        return self.create_new_zombies(random.randint(0, self.difficulty.value))
 
     def create_new_zombies(self, n):
-        new_spots = self.get_free_border_spots()
-        if not new_spots:
+        new_spots, zombie_spots = self.get_free_border_spots()
+        if not new_spots and not zombie_spots:
             return TurnResult.WIN
         new_spots = random.sample(new_spots, n)
         for i in new_spots:
-            self.board[0][i] = 'z'
+            zombie_chance = random.randint(1, 100)
+            if zombie_chance <= 10:
+                self.board[0][i] = 'ze'
+            elif zombie_chance <= 20:
+                self.board[0][i] = 'zs'
+            elif zombie_chance <= 50:
+                self.board[0][i] = 'zi'
+            else:
+                self.board[0][i] = 'zw'
         return TurnResult.OK
 
     def endgame_info(self, won):
@@ -461,22 +598,30 @@ class BlockTheBorder(Gameplay):
 class BlockAndClear(BlockTheBorder):
     def __init__(self, board_y, difficulty):
         super().__init__(board_y, difficulty)
-        self.game_mode = GameModes.BLOCK_AND_CLEAR
+        self.game_mode = GameMode.BLOCK_AND_CLEAR
 
     def is_board_clear(self):
         for i in range(self.board_y):
             for j in range(8):
-                if self.board[i][j] == 'z':
+                if self.is_zombie(i, j):
                     return False
         return True
 
     def create_new_zombies(self, n):
-        new_spots = self.get_free_border_spots()
-        if not new_spots and self.is_board_clear():
+        new_spots, zombie_spots = self.get_free_border_spots()
+        if not new_spots and not zombie_spots and self.is_board_clear():
             return TurnResult.WIN
         new_spots = random.sample(new_spots, n)
         for i in new_spots:
-            self.board[0][i] = 'z'
+            zombie_chance = random.randint(1, 100)
+            if zombie_chance <= 10:
+                self.board[0][i] = 'ze'
+            elif 10 < zombie_chance <= 20:
+                self.board[0][i] = 'zs'
+            elif 20 < zombie_chance <= 50:
+                self.board[0][i] = 'zi'
+            else:
+                self.board[0][i] = 'zw'
         return TurnResult.OK
 
     def endgame_info(self, won):

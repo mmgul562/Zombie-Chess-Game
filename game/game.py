@@ -18,6 +18,7 @@ class GameStates(Enum):
     SETTINGS = 7
     GAME_OVER = 8
     PLAYING = 9
+    ENDGAME_BOARD = 10
 
 
 class DisplaySettings:
@@ -39,13 +40,16 @@ class DisplaySettings:
         self.load_piece_images()
 
     def load_piece_images(self):
-        pieces = {'pawn', 'rook', 'knight', 'bishop', 'queen', 'King', 'zombie'}
+        pieces = {'pawn', 'rook', 'knight', 'bishop', 'queen', 'King',
+                  'zombie_walker', 'zombie_stomper', 'zombie_infected', 'zombie_exploding'}
+
         for piece in pieces:
             filename = piece + '.png'
+            piece_name = f'p{piece[0]}' if piece[0] != 'z' else f'z{piece[7]}'
             try:
                 original_image = pygame.image.load(os.path.join('img/chess_pieces', filename))
                 scaled_image = pygame.transform.scale(original_image, (self.square_size - 10, self.square_size - 10))
-                self.piece_images[piece[0]] = scaled_image
+                self.piece_images[piece_name] = scaled_image
             except Exception as e:
                 print(f'Could not load image {filename}: {e}')
 
@@ -71,10 +75,11 @@ class DisplaySettings:
 
 
 class Game:
-    def __init__(self, board_y, difficulty, game_mode):
+    def __init__(self):
+        board_y = 8
         pygame.init()
         self.won = False
-        self.gameplay = self.init_game_mode(board_y, difficulty, game_mode)
+        self.gameplay = self.init_game_mode(board_y, Difficulty.EASY, GameMode.BLOCK_THE_BORDER)
         self.custom = CustomGameMode()
 
         info_object = pygame.display.Info()
@@ -92,13 +97,13 @@ class Game:
 
     @staticmethod
     def init_game_mode(board_y, difficulty, game_mode):
-        if game_mode == GameModes.SURVIVE_THE_LONGEST:
+        if game_mode == GameMode.SURVIVE_THE_LONGEST:
             return SurviveTheLongest(board_y, difficulty)
-        elif game_mode == GameModes.CAPTURE_THE_MOST:
+        elif game_mode == GameMode.CAPTURE_THE_MOST:
             return CaptureTheMost(board_y, difficulty)
-        elif game_mode == GameModes.BLOCK_THE_BORDER:
+        elif game_mode == GameMode.BLOCK_THE_BORDER:
             return BlockTheBorder(board_y, difficulty)
-        elif game_mode == GameModes.BLOCK_AND_CLEAR:
+        elif game_mode == GameMode.BLOCK_AND_CLEAR:
             return BlockAndClear(board_y, difficulty)
 
     def draw_board(self):
@@ -120,8 +125,8 @@ class Game:
         for row in range(self.gameplay.board_y):
             for col in range(8):
                 piece = self.gameplay.get_piece_at(row, col)
-                if piece and piece[0] in self.display_settings.piece_images:
-                    self.screen.blit(self.display_settings.piece_images[piece[0]],
+                if piece and piece[0:2] in self.display_settings.piece_images:
+                    self.screen.blit(self.display_settings.piece_images[piece[0:2]],
                                      ((
                                               col * self.display_settings.square_size + 5) - self.display_settings.center_offset_x,
                                       row * self.display_settings.square_size + 5))
@@ -181,10 +186,11 @@ class Game:
                 elif buttons['rm_board_height'].collidepoint(mouse_pos):
                     self.custom.rm_board_height()
 
-                for piece, rect in custom_info['pieces']:
-                    if rect.collidepoint(mouse_pos):
-                        self.custom.select_piece(piece)
-                        return
+                for i in range(2):
+                    for piece, rect in custom_info['pieces'][i]:
+                        if rect.collidepoint(mouse_pos):
+                            self.custom.select_piece(piece)
+                            return
 
                 if board_rect.collidepoint(mouse_pos):
                     col = int((mouse_pos[0] - board_x) // square_size)
@@ -318,12 +324,13 @@ class Game:
     def handle_game_over_state(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
             mouse_pos = pygame.mouse.get_pos()
-            restart_btn, menu_btn = self.menu.information_menu('Game Over', 'Try Again', 'Main Menu',
+            main_text = 'You Win' if self.won else 'Game Over'
+            show_btn, restart_btn = self.menu.information_menu(main_text, 'Show Board', 'Play Again',
                                                                additional_info=self.gameplay.endgame_info(self.won))
-            if restart_btn.collidepoint(mouse_pos):
+            if show_btn.collidepoint(mouse_pos):
+                self.current_state = GameStates.ENDGAME_BOARD
+            elif restart_btn.collidepoint(mouse_pos):
                 self.current_state = GameStates.SETTINGS
-            elif menu_btn.collidepoint(mouse_pos):
-                self.current_state = GameStates.MENU
 
     def handle_playing_state(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -349,7 +356,7 @@ class Game:
                         self.current_state = GameStates.GAME_OVER
                         self.won = True
                     elif turn_result == TurnResult.OK:
-                        if row == 0 and self.gameplay.get_piece_at(row, col)[0] == 'p':
+                        if row == 0 and self.gameplay.is_pawn(row, col):
                             new_piece = self.menu.pawn_promotion_menu()
                             self.gameplay.promote_pawn(row, col, new_piece)
                         self.gameplay.unselect_piece()
@@ -436,11 +443,12 @@ class Game:
                     self.menu.update_help_menu(help_section)
             elif self.current_state == GameStates.SETTINGS:
                 self.menu.game_settings_menu(self.gameplay.game_mode, self.gameplay.difficulty, self.gameplay.board_y)
-            elif self.current_state == GameStates.PLAYING:
+            elif self.current_state == GameStates.PLAYING or self.current_state == GameStates.ENDGAME_BOARD:
                 self.draw_board()
                 self.draw_pieces()
             elif self.current_state == GameStates.GAME_OVER:
-                self.menu.information_menu('Game Over', 'Try Again', 'Main Menu',
+                main_text = 'You Win' if self.won else 'Game Over'
+                self.menu.information_menu(main_text, 'Show Board', 'Play Again',
                                            additional_info=self.gameplay.endgame_info(self.won))
 
             pygame.display.flip()

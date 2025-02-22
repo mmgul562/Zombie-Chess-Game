@@ -1,6 +1,7 @@
 import pygame
 
 import random
+import os
 
 
 class ScrollableSection:
@@ -106,9 +107,9 @@ class Menu:
 
         self.piece_images = piece_images
         if self.aspect_ratio == 16 / 9:
-            background_images = ['bg_blur.png', 'bg_alt_blur.png']
+            background_images = ('bg_blur.png', 'bg_alt_blur.png')
             bg_index = random.randint(0, 1)
-            bg = pygame.image.load(f'img/backgrounds/16-9/{background_images[bg_index]}')
+            bg = pygame.image.load(os.path.join('img/backgrounds/16-9', background_images[bg_index]))
             self.background = pygame.transform.scale(bg, (self.screen_width, self.screen_height))
 
         self.LIGHT_BROWN = (255, 248, 220)
@@ -306,7 +307,7 @@ class Menu:
                          (popup_x, popup_y, popup_width, popup_height), 2)
 
         piece_size = min(popup_height - 60, popup_width // 4 - 20)
-        pieces = ['queen', 'rook', 'bishop', 'knight']
+        pieces = ('pq', 'pr', 'pb', 'pk')
         piece_y = popup_y + (popup_height - piece_size) // 2
         spacing = (popup_width - (len(pieces) * piece_size)) // (len(pieces) + 1)
 
@@ -319,8 +320,8 @@ class Menu:
             pygame.draw.rect(self.screen, self.BROWN,
                              (piece_x, piece_y, piece_size, piece_size), 1)
 
-            if piece[0] in self.piece_images:
-                image = pygame.transform.scale(self.piece_images[piece[0]], (piece_size - 10, piece_size - 10))
+            if piece in self.piece_images:
+                image = pygame.transform.scale(self.piece_images[piece], (piece_size - 10, piece_size - 10))
                 image_x = piece_x + 5
                 image_y = piece_y + 5
                 self.screen.blit(image, (image_x, image_y))
@@ -335,7 +336,7 @@ class Menu:
                     mouse_pos = pygame.mouse.get_pos()
                     for piece, area in piece_areas.items():
                         if area.collidepoint(mouse_pos):
-                            return piece[0]
+                            return piece
                 elif event.type == pygame.QUIT:
                     return None
 
@@ -380,8 +381,8 @@ class Menu:
         board_start_x = (self.screen_width // 2) - (board_width // 2)
         board_start_y = (self.screen_height - board_height) // 4
 
-        piece_selector_width = int(self.screen_width * 0.1)
-        sections_gap = int(self.screen_width * 0.3) // 4
+        piece_selector_width = int(self.screen_width * 0.15)
+        sections_gap = int(self.screen_width * 0.1) // 4
         settings_x = board_start_x + board_width + sections_gap
         piece_selector_x = board_start_x - piece_selector_width - sections_gap
 
@@ -404,7 +405,7 @@ class Menu:
                 pygame.draw.rect(self.screen, color, (x, y, square_size, square_size))
 
                 piece = board[row][col]
-                if piece and piece in self.piece_images:
+                if piece in self.piece_images:
                     piece_size = square_size - 10
                     image = pygame.transform.scale(
                         self.piece_images[piece],
@@ -417,17 +418,20 @@ class Menu:
         self.draw_section_text('Available Pieces', self.LIGHT_BROWN,
                                piece_selector_x + piece_selector_width // 2, board_start_y - 40)
 
-        pieces = ['K', 'q', 'r', 'b', 'k', 'p', 'z']
-        piece_size = int((base_board_height // 7) * 0.8)
-        piece_gap = (base_board_height - (7 * piece_size)) // 8
+        pieces = ('pK', 'pq', 'pr', 'pb', 'pk', 'pp')
+        zombies = ('zw', 'zs', 'ze', 'zi')
+
+        piece_size = int((base_board_height // 6) * 0.8)
+        piece_gap = (base_board_height - (6 * piece_size)) // 7
         selector_square_size = piece_size + 10
+        list_gap = (piece_selector_width - 2 * selector_square_size) // 3
         highlight_surface = pygame.Surface((selector_square_size, selector_square_size), pygame.SRCALPHA)
         pygame.draw.rect(highlight_surface, self.HIGHLIGHT_COLOR,
                          (0, 0, selector_square_size, selector_square_size))
 
         for i, piece in enumerate(pieces):
             if piece in self.piece_images:
-                piece_x = piece_selector_x + (piece_selector_width - piece_size) // 2
+                piece_x = piece_selector_x + 2 * list_gap + selector_square_size
                 piece_y = board_start_y + (i * (piece_size + piece_gap)) + piece_gap
 
                 pygame.draw.rect(self.screen, self.YELLOW,
@@ -445,6 +449,21 @@ class Menu:
                 image = pygame.transform.scale(self.piece_images[piece], (piece_size, piece_size))
                 self.screen.blit(image, (piece_x, piece_y))
 
+        for i, zombie in enumerate(zombies):
+            if zombie in self.piece_images:
+                zombie_x = piece_selector_x + list_gap
+                zombie_y = board_start_y + (i * (piece_size + piece_gap)) + piece_gap
+
+                pygame.draw.rect(self.screen, self.YELLOW,
+                                 (zombie_x - 5, zombie_y - 5, selector_square_size, selector_square_size))
+                pygame.draw.rect(self.screen, self.LIGHT_BROWN,
+                                 (zombie_x - 5, zombie_y - 5, selector_square_size, selector_square_size), 2)
+
+                if zombie is selected_piece:
+                    self.screen.blit(highlight_surface, (zombie_x - 5, zombie_y - 5))
+
+                image = pygame.transform.scale(self.piece_images[zombie], (piece_size, piece_size))
+                self.screen.blit(image, (zombie_x, zombie_y))
         left_offset = -int(self.screen_width * 0.3)
         right_offset = int(self.screen_width * 0.3)
 
@@ -456,11 +475,18 @@ class Menu:
             'board_area': pygame.Rect(board_start_x, board_start_y, board_width, board_height),
             'square_size': square_size,
             'board_start': (board_start_x, board_start_y),
-            'pieces': [(piece, pygame.Rect(
-                piece_selector_x + (piece_selector_width - piece_size) // 2,
-                board_start_y + (i * (piece_size + piece_gap)) + piece_gap,
-                piece_size, piece_size
-            )) for i, piece in enumerate(pieces)],
+            'pieces': [
+                [(piece, pygame.Rect(
+                    piece_selector_x + 2 * list_gap + selector_square_size,
+                    board_start_y + (i * (piece_size + piece_gap)) + piece_gap,
+                    piece_size, piece_size
+                )) for i, piece in enumerate(pieces)],
+                [(zombie, pygame.Rect(
+                    piece_selector_x + list_gap,
+                    board_start_y + (i * (piece_size + piece_gap)) + piece_gap,
+                    piece_size, piece_size
+                )) for i, zombie in enumerate(zombies)]
+            ],
             'buttons': {
                 'add_board_height': add_board_height_btn,
                 'rm_board_height': rm_board_height_btn,
@@ -519,7 +545,8 @@ class Menu:
 
         self.draw_text('Name should be at least 3 and at most 20 characters long',
                        self.LIGHT_BROWN,
-                       self.screen_width // 2, fifth_section_y)
+                       self.screen_width // 2, fifth_section_y,
+                       outline_color=self.OUTLINE_COLOR)
 
         left_offset = -int(self.screen_width * 0.3)
         right_offset = int(self.screen_width * 0.3)
@@ -589,7 +616,8 @@ class Menu:
 
         info_y = self.content_start_y + self.element_spacing
         if additional_info:
-            self.draw_text(additional_info, self.LIGHT_BROWN, self.screen_width // 2, info_y)
+            self.draw_text(additional_info, self.LIGHT_BROWN, self.screen_width // 2, info_y,
+                           outline_color=self.OUTLINE_COLOR)
 
         first_button_y = info_y + self.section_spacing
         second_button_y = first_button_y + self.button_height + self.element_spacing
