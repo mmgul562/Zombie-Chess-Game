@@ -98,19 +98,13 @@ class ScrollableSection:
             pygame.draw.rect(self.screen, self.LIGHT_BROWN, horizontal_scroll_bar)
 
 
-class Menu:
-    def __init__(self, screen, screen_width, screen_height, piece_images):
+class Display:
+    def __init__(self, screen, screen_width, screen_height, screen_border_height):
         self.screen = screen
         self.screen_width = screen_width
         self.screen_height = screen_height
+        self.screen_border_height = screen_border_height
         self.aspect_ratio = screen_width / screen_height
-
-        self.piece_images = piece_images
-        if self.aspect_ratio == 16 / 9:
-            background_images = ('bg_blur.png', 'bg_alt_blur.png')
-            bg_index = random.randint(0, 1)
-            bg = pygame.image.load(os.path.join('img/backgrounds/16-9', background_images[bg_index]))
-            self.background = pygame.transform.scale(bg, (self.screen_width, self.screen_height))
 
         self.LIGHT_BROWN = (255, 248, 220)
         self.BROWN = (193, 120, 50)
@@ -119,8 +113,14 @@ class Menu:
         self.GREY = (136, 145, 153)
         self.BOARD_COLORS = ((255, 215, 175), (205, 132, 55))
         self.SEPARATOR_COLOR = (223, 178, 110)
-        self.HIGHLIGHT_COLOR = (75, 200, 70, 128)
+        self.HIGHLIGHT_COLOR = (0, 162, 232, 128)
         self.OUTLINE_COLOR = (40, 15, 5)
+
+        self.popup_background = None
+        self.background = None
+        self.set_background()
+        self.piece_images = {}
+        self.load_piece_images()
 
         self.scale_factor = min(screen_width, screen_height) / 1000
 
@@ -140,14 +140,6 @@ class Menu:
         self.content_start_y = int(screen_height * 0.22)
         self.bottom_margin = int(screen_height * 0.9)
 
-        self.left_section_x = int(screen_width * 0.2)
-        self.middle_section_x = int(screen_width * 0.5)
-        self.right_section_x = int(screen_width * 0.75)
-
-        self.separator_start_x = int(screen_width * 0.1)
-        self.separator_end_x = int(screen_width * 0.9)
-        self.separator_thickness = max(2, int(self.scale_factor * 2))
-
         self.main_font = pygame.font.Font('util/Roboto-Bold.ttf', self.main_font_size)
         self.font = pygame.font.Font('util/Roboto-Regular.ttf', self.regular_font_size)
         self.section_font = pygame.font.Font('util/Roboto-Bold.ttf', self.section_font_size)
@@ -157,11 +149,38 @@ class Menu:
         self.animation_speed = 0.02
         self.current_scales = {}
 
-    def draw_background(self):
-        if self.aspect_ratio != 16 / 9:
-            self.screen.fill(self.BROWN)
+    def set_background(self):
+        if self.aspect_ratio == 16 / 9:
+            background_images = ('bg_blur.png', 'bg_alt_blur.png')
+            bg_index = random.randint(0, 1)
+            bg = pygame.image.load(os.path.join('img/backgrounds/16-9', background_images[bg_index]))
+            self.background = pygame.transform.scale(bg, (self.screen_width, self.screen_height))
         else:
-            self.screen.blit(self.background, (0, 0))
+            self.background = pygame.Surface((self.screen_width, self.screen_height))
+            self.background.fill(self.BROWN)
+
+    def load_piece_images(self):
+        pieces = {'pawn', 'rook', 'knight', 'bishop', 'queen', 'King',
+                  'zombie_walker', 'zombie_stomper', 'zombie_infected', 'zombie_exploding'}
+
+        for piece in pieces:
+            filename = piece + '.png'
+            piece_name = f'p{piece[0]}' if piece[0] != 'z' else f'z{piece[7]}'
+            try:
+                image = pygame.image.load(os.path.join('img/chess_pieces', filename))
+                self.piece_images[piece_name] = image
+            except Exception as e:
+                print(f'Could not load image {filename}: {e}')
+
+    def switch_screen_display(self):
+        self.screen_height -= self.screen_border_height
+        self.screen_border_height = -self.screen_border_height
+
+    def set_popup_background(self):
+        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
+        overlay.fill((0, 0, 0, 128))
+        self.screen.blit(overlay, (0, 0))
+        self.popup_background = self.screen.copy()
 
     def draw_main_text(self, text, color, outline_color=None, outline_width=4, y_pos=None):
         x = self.screen_width // 2
@@ -214,13 +233,14 @@ class Menu:
 
     def draw_section_row(self, section_name, description, y_pos, buttons_info, disabled=False):
         text_color = self.LIGHT_BROWN if not disabled else self.GREY
-        self.draw_section_text(section_name, text_color, self.left_section_x, y_pos)
+        self.draw_section_text(section_name, text_color, int(self.screen_width * 0.2), y_pos)
 
-        self.draw_text(str(description), text_color, self.middle_section_x, y_pos, outline_color=self.OUTLINE_COLOR)
+        middle_section_x = int(self.screen_width * 0.5)
+        self.draw_text(str(description), text_color, middle_section_x, y_pos, outline_color=self.OUTLINE_COLOR)
 
         buttons = []
         for i, (text, width, button_disabled) in enumerate(buttons_info):
-            x_offset = self.right_section_x - self.middle_section_x + (i * int(self.small_button_width * 1.2))
+            x_offset = int(self.screen_width * 0.75) - middle_section_x + (i * int(self.small_button_width * 1.2))
             btn = self.draw_button(text, y_pos,
                                    width=width or self.small_button_width,
                                    height=self.small_button_height,
@@ -232,9 +252,9 @@ class Menu:
         pygame.draw.line(
             self.screen,
             self.SEPARATOR_COLOR,
-            (self.separator_start_x, y_pos),
-            (self.separator_end_x, y_pos),
-            self.separator_thickness
+            (int(self.screen_width * 0.1), y_pos),
+            (int(self.screen_width * 0.9), y_pos),
+            max(2, int(self.scale_factor * 2))
         )
 
     def draw_button(self, text, y, x=None, width=None, height=None, x_offset=0, disabled=False):
@@ -291,57 +311,25 @@ class Menu:
 
         return button_rect
 
-    def pawn_promotion_menu(self):
-        popup_width = int(self.screen_width * 0.3)
-        popup_height = int(self.screen_height * 0.15)
-        popup_x = (self.screen_width - popup_width) // 2
-        popup_y = (self.screen_height - popup_height) // 2
+    def information_menu(self, main_text, first_btn_text, second_btn_text, additional_info=None):
+        self.screen.blit(self.background, (0, 0))
+        self.draw_main_text(main_text, self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
-        overlay = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
-        overlay.fill((0, 0, 0, 128))
-        self.screen.blit(overlay, (0, 0))
+        info_y = self.content_start_y + self.element_spacing
+        if additional_info:
+            self.draw_text(additional_info, self.LIGHT_BROWN, self.screen_width // 2, info_y,
+                           outline_color=self.OUTLINE_COLOR)
 
-        pygame.draw.rect(self.screen, self.LIGHT_BROWN,
-                         (popup_x, popup_y, popup_width, popup_height))
-        pygame.draw.rect(self.screen, self.BROWN,
-                         (popup_x, popup_y, popup_width, popup_height), 2)
+        first_button_y = info_y + self.section_spacing
+        second_button_y = first_button_y + self.button_height + self.element_spacing
 
-        piece_size = min(popup_height - 60, popup_width // 4 - 20)
-        pieces = ('pq', 'pr', 'pb', 'pk')
-        piece_y = popup_y + (popup_height - piece_size) // 2
-        spacing = (popup_width - (len(pieces) * piece_size)) // (len(pieces) + 1)
+        first_btn = self.draw_button(first_btn_text, first_button_y)
+        second_btn = self.draw_button(second_btn_text, second_button_y)
 
-        piece_areas = {}
-        for i, piece in enumerate(pieces):
-            piece_x = popup_x + spacing + (i * (piece_size + spacing))
-
-            pygame.draw.rect(self.screen, self.YELLOW,
-                             (piece_x, piece_y, piece_size, piece_size))
-            pygame.draw.rect(self.screen, self.BROWN,
-                             (piece_x, piece_y, piece_size, piece_size), 1)
-
-            if piece in self.piece_images:
-                image = pygame.transform.scale(self.piece_images[piece], (piece_size - 10, piece_size - 10))
-                image_x = piece_x + 5
-                image_y = piece_y + 5
-                self.screen.blit(image, (image_x, image_y))
-
-            piece_areas[piece] = pygame.Rect(piece_x, piece_y, piece_size, piece_size)
-
-        pygame.display.flip()
-
-        while True:
-            for event in pygame.event.get():
-                if event.type == pygame.MOUSEBUTTONDOWN:
-                    mouse_pos = pygame.mouse.get_pos()
-                    for piece, area in piece_areas.items():
-                        if area.collidepoint(mouse_pos):
-                            return piece
-                elif event.type == pygame.QUIT:
-                    return None
+        return first_btn, second_btn
 
     def main_menu(self):
-        self.draw_background()
+        self.screen.blit(self.background, (0, 0))
         self.draw_main_text('Zombie Chess Game', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         first_button_y = self.content_start_y + self.element_spacing
@@ -357,7 +345,7 @@ class Menu:
         return play_btn, custom_btn, help_btn, quit_btn
 
     def custom_menu(self):
-        self.draw_background()
+        self.screen.blit(self.background, (0, 0))
         self.draw_main_text('Custom Modes', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         first_button_y = self.content_start_y + self.element_spacing
@@ -371,33 +359,30 @@ class Menu:
 
         return create_btn, load_btn, go_back_btn
 
-    def create_custom_menu(self, board_y, board, selected_piece, has_king):
-        self.draw_background()
+    def create_custom_menu(self, board_height, board, selected_piece, has_king):
+        self.screen.blit(self.background, (0, 0))
 
-        base_board_height = self.screen_height * 0.7
-        square_size = min(base_board_height // board_y, (self.screen_width * 0.5) // 8)
+        board_height_px = self.screen_height * 0.7
+        square_size = min(board_height_px // board_height, (self.screen_width * 0.5) // 8)
         board_width = square_size * 8
-        board_height = square_size * board_y
         board_start_x = (self.screen_width // 2) - (board_width // 2)
-        board_start_y = (self.screen_height - board_height) // 4
+        board_start_y = (self.screen_height - board_height_px) // 4
 
         piece_selector_width = int(self.screen_width * 0.15)
-        sections_gap = int(self.screen_width * 0.1) // 4
-        settings_x = board_start_x + board_width + sections_gap
-        piece_selector_x = board_start_x - piece_selector_width - sections_gap
+        sections_gap = int(self.screen_width * 0.1) // 2
+        settings_x = self.screen_width - sections_gap - self.small_button_width
+        piece_selector_x = sections_gap
 
         add_board_height_btn = self.draw_button('+',
-                                                board_start_y + base_board_height // 2 - self.font.get_height() * 1.5,
+                                                board_start_y + board_height_px // 2 - self.font.get_height() * 1.5,
                                                 width=self.small_button_width, x=settings_x)
-        self.draw_text(str(board_y), self.LIGHT_BROWN, add_board_height_btn.centerx,
-                       board_start_y + base_board_height // 2)
+        self.draw_text(str(board_height), self.LIGHT_BROWN, add_board_height_btn.centerx,
+                       board_start_y + board_height_px // 2, outline_color=self.OUTLINE_COLOR)
         rm_board_height_btn = self.draw_button('-',
-                                               board_start_y + base_board_height // 2 + self.font.get_height() * 1.5,
+                                               board_start_y + board_height_px // 2 + self.font.get_height() * 1.5,
                                                width=self.small_button_width, x=settings_x)
 
-        pygame.draw.rect(self.screen, self.DARK_BROWN,
-                         (board_start_x - 5, board_start_y - 5, board_width + 10, board_height + 10), 5)
-        for row in range(board_y):
+        for row in range(board_height):
             for col in range(8):
                 x = board_start_x + (col * square_size)
                 y = board_start_y + (row * square_size)
@@ -414,18 +399,18 @@ class Menu:
                     self.screen.blit(image, (x + 5, y + 5))
 
         pygame.draw.rect(self.screen, self.SEPARATOR_COLOR,
-                         (piece_selector_x, board_start_y, piece_selector_width, base_board_height))
+                         (piece_selector_x, board_start_y, piece_selector_width, board_height_px))
         self.draw_section_text('Available Pieces', self.LIGHT_BROWN,
                                piece_selector_x + piece_selector_width // 2, board_start_y - 40)
 
         pieces = ('pK', 'pq', 'pr', 'pb', 'pk', 'pp')
         zombies = ('zw', 'zs', 'ze', 'zi')
 
-        piece_size = int((base_board_height // 6) * 0.8)
-        piece_gap = (base_board_height - (6 * piece_size)) // 7
+        piece_size = int((board_height_px // 6) * 0.8)
+        piece_gap = (board_height_px - (6 * piece_size)) // 7
         selector_square_size = piece_size + 10
         list_gap = (piece_selector_width - 2 * selector_square_size) // 3
-        highlight_surface = pygame.Surface((selector_square_size, selector_square_size), pygame.SRCALPHA)
+        highlight_surface = pygame.Surface((selector_square_size, selector_square_size))
         pygame.draw.rect(highlight_surface, self.HIGHLIGHT_COLOR,
                          (0, 0, selector_square_size, selector_square_size))
 
@@ -464,17 +449,16 @@ class Menu:
 
                 image = pygame.transform.scale(self.piece_images[zombie], (piece_size, piece_size))
                 self.screen.blit(image, (zombie_x, zombie_y))
+
         left_offset = -int(self.screen_width * 0.3)
         right_offset = int(self.screen_width * 0.3)
 
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
         clear_board_btn = self.draw_button('Clear Board', self.bottom_margin)
         next_btn = self.draw_button('Next', self.bottom_margin, x_offset=right_offset, disabled=not has_king)
-
         return {
-            'board_area': pygame.Rect(board_start_x, board_start_y, board_width, board_height),
-            'square_size': square_size,
             'board_start': (board_start_x, board_start_y),
+            'square_size': square_size,
             'pieces': [
                 [(piece, pygame.Rect(
                     piece_selector_x + 2 * list_gap + selector_square_size,
@@ -497,7 +481,7 @@ class Menu:
         }
 
     def save_custom_menu(self, game_mode, difficulty, gm_disabled, difficulty_disabled, name, is_focused, name_ok):
-        self.draw_background()
+        self.screen.blit(self.background, (0, 0))
         self.draw_main_text('Settings', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         first_section_y = self.content_start_y
@@ -567,7 +551,7 @@ class Menu:
         }
 
     def load_custom_menu(self):
-        self.draw_background()
+        self.screen.blit(self.background, (0, 0))
         self.draw_main_text('Load Custom Mode', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         left_offset = -int(self.screen_width * 0.3)
@@ -576,7 +560,7 @@ class Menu:
         return go_back_btn
 
     def game_settings_menu(self, game_mode, difficulty, board_y):
-        self.draw_background()
+        self.screen.blit(self.background, (0, 0))
         self.draw_main_text('Play', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         first_section_y = self.content_start_y
@@ -610,25 +594,121 @@ class Menu:
         buttons = (game_mode_btn, difficulty_btn, add_btn, rm_btn, play_btn, go_back_btn)
         return buttons
 
-    def information_menu(self, main_text, first_btn_text, second_btn_text, additional_info=None):
-        self.draw_background()
-        self.draw_main_text(main_text, self.LIGHT_BROWN, self.OUTLINE_COLOR)
+    def playing_screen(self, board_height, board, selected, game_stats, displayed_board_part=-1):
+        self.screen.blit(self.background, (0, 0))
+        stats_sidebar_width = self.screen_width // 4
+        stats_x_padding = stats_sidebar_width // 2 + 30
+        stats_y_gap = self.screen_height // (len(game_stats) + 2)
 
-        info_y = self.content_start_y + self.element_spacing
-        if additional_info:
-            self.draw_text(additional_info, self.LIGHT_BROWN, self.screen_width // 2, info_y,
-                           outline_color=self.OUTLINE_COLOR)
+        for i, (stat, val) in enumerate(game_stats.items()):
+            self.draw_section_text(f'{stat}: {val}', self.LIGHT_BROWN, stats_x_padding, (i + 1) * stats_y_gap,
+                                   outline_color=self.OUTLINE_COLOR)
 
-        first_button_y = info_y + self.section_spacing
-        second_button_y = first_button_y + self.button_height + self.element_spacing
+        can_split = board_height > 9
+        display_whole_board = displayed_board_part == 0
+        display_lower_half = displayed_board_part == -1
 
-        first_btn = self.draw_button(first_btn_text, first_button_y)
-        second_btn = self.draw_button(second_btn_text, second_button_y)
+        base_square_size = self.screen_height // 10
+        square_size = base_square_size
+        start_row = 0
+        end_row = board_height
+        board_start_y = (self.screen_height - board_height * square_size) // 2
 
-        return first_btn, second_btn
+        if can_split:
+            if display_whole_board:
+                square_size = (self.screen_height - 2 * base_square_size) // board_height
+                board_start_y = base_square_size
+            else:
+                if display_lower_half:
+                    start_row = board_height // 2
+                    end_row = board_height
+                    board_start_y = 0
+                else:
+                    start_row = 0
+                    end_row = board_height // 2
+                    board_start_y = self.screen_height - (board_height // 2) * square_size
+
+        board_start_x = max(stats_sidebar_width + 50, self.screen_width // 2 - (square_size * 8) // 2)
+
+        highlight_surface = pygame.Surface((square_size, square_size))
+        pygame.draw.rect(highlight_surface, self.HIGHLIGHT_COLOR,
+                         (0, 0, square_size, square_size))
+        for row in range(start_row, end_row):
+            local_row = row - start_row
+            for col in range(8):
+                square_color = self.BOARD_COLORS[(row + col) % 2]
+                square_rect = pygame.Rect(
+                    board_start_x + col * square_size,
+                    board_start_y + local_row * square_size,
+                    square_size,
+                    square_size
+                )
+                pygame.draw.rect(self.screen, square_color, square_rect)
+                if (row, col) == selected:
+                    self.screen.blit(highlight_surface,
+                                     ((col * square_size) + board_start_x,
+                                      (local_row * square_size) + board_start_y))
+
+                piece = board[row][col]
+                if piece and piece[:2] in self.piece_images:
+                    image = pygame.transform.scale(self.piece_images[piece[:2]],
+                                                   (square_size - 10, square_size - 10))
+                    self.screen.blit(image,
+                                     ((col * square_size + 5) + board_start_x,
+                                      (local_row * square_size + 5) + board_start_y))
+
+        switch_halves_btn = None
+        if can_split and not display_whole_board:
+            button_x = board_start_x + (square_size * 8) + 20
+            button_y = (self.screen_height - self.small_button_height) // 2
+            sign = '^' if display_lower_half else 'v'
+            switch_halves_btn = self.draw_button(sign, button_y, button_x, width=self.small_button_width)
+
+        return {
+            'board_start': (board_start_x, board_start_y),
+            'square_size': square_size,
+            'row_offset': start_row,
+            'switch_halves_btn': switch_halves_btn
+        }
+
+    def pawn_promotion_menu(self):
+        self.screen.blit(self.popup_background, (0, 0))
+
+        popup_width = int(self.screen_width * 0.3)
+        popup_height = int(self.screen_height * 0.15)
+        popup_x = (self.screen_width - popup_width) // 2
+        popup_y = (self.screen_height - popup_height) // 2
+
+        pygame.draw.rect(self.screen, self.LIGHT_BROWN,
+                         (popup_x, popup_y, popup_width, popup_height))
+        pygame.draw.rect(self.screen, self.BROWN,
+                         (popup_x, popup_y, popup_width, popup_height), 2)
+
+        piece_size = min(popup_height - 60, popup_width // 4 - 20)
+        pieces = ('pq', 'pr', 'pb', 'pk')
+        piece_y = popup_y + (popup_height - piece_size) // 2
+        spacing = (popup_width - (len(pieces) * piece_size)) // (len(pieces) + 1)
+
+        piece_areas = {}
+        for i, piece in enumerate(pieces):
+            piece_x = popup_x + spacing + (i * (piece_size + spacing))
+
+            pygame.draw.rect(self.screen, self.YELLOW,
+                             (piece_x, piece_y, piece_size, piece_size))
+            pygame.draw.rect(self.screen, self.BROWN,
+                             (piece_x, piece_y, piece_size, piece_size), 1)
+
+            if piece in self.piece_images:
+                image = pygame.transform.scale(self.piece_images[piece], (piece_size - 10, piece_size - 10))
+                image_x = piece_x + 5
+                image_y = piece_y + 5
+                self.screen.blit(image, (image_x, image_y))
+            piece_areas[piece] = pygame.Rect(piece_x, piece_y, piece_size, piece_size)
+
+        return piece_areas
 
     def help_menu(self):
-        self.draw_background()
+        self.screen.blit(self.background, (0, 0))
         self.draw_main_text('Help', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         content_rect = pygame.Rect(
@@ -704,7 +784,7 @@ class Menu:
         return help_section, go_back_btn
 
     def update_help_menu(self, scrollable_section):
-        self.draw_background()
+        self.screen.blit(self.background, (0, 0))
         self.draw_main_text('Help', self.LIGHT_BROWN, self.OUTLINE_COLOR)
         left_offset = -int(self.screen_width * 0.3)
         self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)

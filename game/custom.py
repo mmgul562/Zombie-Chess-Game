@@ -14,7 +14,7 @@ class CustomGameMode:
         self.is_name_ok = False
         self.has_king = False
         self.is_focused = False
-        self.board_y = 8
+        self.board_height = 8
         self.base_game_mode = GameMode.SURVIVE_THE_LONGEST
         self.difficulty = Difficulty.NORMAL
         self.game_mode_disabled = False
@@ -24,7 +24,7 @@ class CustomGameMode:
     def reset(self):
         self.selected_piece = None
         self.error_msg = None
-        self.board = [[None for _ in range(8)] for _ in range(self.board_y)]
+        self.board = [[None for _ in range(8)] for _ in range(self.board_height)]
 
     def get_piece_at(self, i, j):
         return self.board[i][j]
@@ -36,32 +36,29 @@ class CustomGameMode:
         self.selected_piece = None
 
     def add_board_height(self):
-        if self.board_y + 1 > 14:
+        if self.board_height + 1 > 18:
             return
-        self.board_y += 1
+        self.board_height += 1
         self.board.insert(0, [None for _ in range(8)])
 
     def rm_board_height(self):
-        if self.board_y - 1 < 6:
+        if self.board_height - 1 < 6:
             return
-        self.board_y -= 1
+        self.board_height -= 1
         self.board.pop(0)
 
     def clear_board(self):
-        self.board = [[None for _ in range(8)] for _ in range(self.board_y)]
+        self.board = [[None for _ in range(8)] for _ in range(self.board_height)]
 
     def put_selected_piece(self, i, j):
         if self.selected_piece:
             self.board[i][j] = self.selected_piece
 
     def rm_piece(self, i, j):
-        if self.selected_piece:
-            self.selected_piece = None
-        else:
-            self.board[i][j] = None
+        self.board[i][j] = None
 
     def check_for_king(self):
-        for i in range(self.board_y):
+        for i in range(self.board_height):
             for j in range(8):
                 if self.board[i][j] and self.board[i][j][1] == 'K':
                     self.has_king = True
@@ -81,7 +78,7 @@ class CustomGameMode:
 
         data = {
             'name': self.name,
-            'board_y': self.board_y,
+            'board_y': self.board_height,
             'gm_disabled': self.game_mode_disabled,
             'difficulty_disabled': self.difficulty_disabled,
             'base_gm': str(self.base_game_mode),
