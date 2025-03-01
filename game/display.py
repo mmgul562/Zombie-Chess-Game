@@ -144,11 +144,6 @@ class Display:
         self.font = pygame.font.Font('util/Roboto-Regular.ttf', self.regular_font_size)
         self.section_font = pygame.font.Font('util/Roboto-Bold.ttf', self.section_font_size)
 
-        self.hover_scale = 1.1
-        self.current_scale = 1.0
-        self.animation_speed = 0.02
-        self.current_scales = {}
-
     def set_background(self):
         if self.aspect_ratio == 16 / 9:
             background_images = ('bg_blur.png', 'bg_alt_blur.png')
@@ -262,51 +257,26 @@ class Display:
             width = self.button_width
         if height is None:
             height = self.button_height
-
         if x is None:
             x = (self.screen_width // 2) - (width // 2) + x_offset
 
+        bg_color = self.YELLOW if not disabled else self.GREY
+        text_color = self.DARK_BROWN
+
         button_rect = pygame.Rect(x, y - height // 2, width, height)
-        current_scale = 1.0
-        if not disabled:
-            button_id = (x, y)
-
-            if button_id not in self.current_scales:
-                self.current_scales[button_id] = 1.0
-
-            mouse_pos = pygame.mouse.get_pos()
-            is_hovered = button_rect.collidepoint(mouse_pos)
-
-            current_scale = self.current_scales[button_id]
-            target_scale = self.hover_scale if is_hovered else 1.0
-
-            if current_scale < target_scale:
-                current_scale = min(current_scale + self.animation_speed, target_scale)
-            elif current_scale > target_scale:
-                current_scale = max(current_scale - self.animation_speed, target_scale)
-
-            self.current_scales[button_id] = current_scale
-
-        scaled_width = int(width * current_scale)
-        scaled_height = int(height * current_scale)
-        scaled_x = x - (scaled_width - width) // 2
-        scaled_y = y - scaled_height // 2
-
-        scaled_rect = pygame.Rect(scaled_x, scaled_y, scaled_width, scaled_height)
-
-        color = self.YELLOW if not disabled else self.GREY
+        if not disabled and button_rect.collidepoint(pygame.mouse.get_pos()):
+            bg_color = self.HIGHLIGHT_COLOR
+            text_color = self.LIGHT_BROWN
 
         try:
-            pygame.draw.rect(self.screen, color, scaled_rect, border_radius=10)
-            pygame.draw.rect(self.screen, self.LIGHT_BROWN, scaled_rect, 2, border_radius=10)
+            pygame.draw.rect(self.screen, bg_color, button_rect, border_radius=10)
+            pygame.draw.rect(self.screen, self.LIGHT_BROWN, button_rect, 2, border_radius=10)
         except TypeError:
-            pygame.draw.rect(self.screen, color, scaled_rect)
-            pygame.draw.rect(self.screen, self.LIGHT_BROWN, scaled_rect, 2)
+            pygame.draw.rect(self.screen, bg_color, button_rect)
+            pygame.draw.rect(self.screen, self.LIGHT_BROWN, button_rect, 2)
 
-        scaled_font = pygame.font.Font('util/Roboto-Regular.ttf',
-                                       int(self.regular_font_size * current_scale))
-        text_surface = scaled_font.render(text, True, self.DARK_BROWN)
-        text_rect = text_surface.get_rect(center=scaled_rect.center)
+        text_surface = self.font.render(text, True, text_color)
+        text_rect = text_surface.get_rect(center=button_rect.center)
         self.screen.blit(text_surface, text_rect)
 
         return button_rect

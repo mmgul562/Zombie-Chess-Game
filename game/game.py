@@ -478,15 +478,17 @@ class Game:
             elif self.current_state == GameState.CUSTOM_MENU:
                 self.display.custom_menu()
             elif self.current_state == GameState.CREATE_CUSTOM:
-                self.display.create_custom_menu(self.custom_creator.game.board_height, self.custom_creator.game.board,
+                game = self.custom_creator.game
+                self.display.create_custom_menu(game.board_height, game.board,
                                                 self.custom_creator.selected_piece,
                                                 self.custom_creator.has_king)
             elif self.current_state == GameState.SAVE_CUSTOM:
-                self.display.save_custom_menu(self.custom_creator.game.base_gm,
-                                              self.custom_creator.game.difficulty,
-                                              self.custom_creator.game.can_change_gm,
-                                              self.custom_creator.game.can_change_difficulty,
-                                              self.custom_creator.game.name, self.custom_creator.input_focused,
+                game = self.custom_creator.game
+                self.display.save_custom_menu(game.base_gm,
+                                              game.difficulty,
+                                              game.can_change_gm,
+                                              game.can_change_difficulty,
+                                              game.name, self.custom_creator.input_focused,
                                               self.custom_creator.is_name_ok)
             elif self.current_state == GameState.SAVING_STATUS:
                 main_text = 'Success'
@@ -531,6 +533,6 @@ class Game:
                                               additional_info=self.gameplay.endgame_info(self.won))
 
             pygame.display.flip()
-            clock.tick(60)
+            clock.tick(30)
 
         pygame.quit()
