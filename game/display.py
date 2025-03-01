@@ -305,7 +305,7 @@ class Display:
 
         scaled_font = pygame.font.Font('util/Roboto-Regular.ttf',
                                        int(self.regular_font_size * current_scale))
-        text_surface = scaled_font.render(text, True, self.BROWN)
+        text_surface = scaled_font.render(text, True, self.DARK_BROWN)
         text_rect = text_surface.get_rect(center=scaled_rect.center)
         self.screen.blit(text_surface, text_rect)
 
@@ -363,7 +363,8 @@ class Display:
         self.screen.blit(self.background, (0, 0))
 
         board_height_px = self.screen_height * 0.7
-        square_size = min(board_height_px // board_height, (self.screen_width * 0.5) // 8)
+        square_size = min(board_height_px // board_height, self.screen_width // 16)
+        square_size = board_height_px // max(8, board_height)
         board_width = square_size * 8
         board_start_x = (self.screen_width // 2) - (board_width // 2)
         board_start_y = (self.screen_height - board_height_px) // 4
@@ -480,7 +481,7 @@ class Display:
             }
         }
 
-    def save_custom_menu(self, game_mode, difficulty, gm_disabled, difficulty_disabled, name, is_focused, name_ok):
+    def save_custom_menu(self, game_mode, difficulty, can_change_gm, can_change_difficulty, name, is_focused, name_ok):
         self.screen.blit(self.background, (0, 0))
         self.draw_main_text('Settings', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
@@ -492,15 +493,15 @@ class Display:
 
         change_game_mode_btn, disable_game_mode_btn = self.draw_section_row(
             'Base Game Mode', game_mode, first_section_y,
-            [('>', None, gm_disabled), ('X', None, False)],
-            disabled=gm_disabled
+            [('>', None, can_change_gm), ('X', None, False)],
+            disabled=can_change_gm
         )
         self.draw_separator(first_section_y + self.element_spacing // 2)
 
         change_difficulty_btn, disable_difficulty_btn = self.draw_section_row(
             'Difficulty', difficulty, second_section_y,
-            [('>', None, difficulty_disabled), ('X', None, False)],
-            disabled=difficulty_disabled
+            [('>', None, can_change_difficulty), ('X', None, False)],
+            disabled=can_change_difficulty
         )
         self.draw_separator(second_section_y + self.element_spacing // 2)
 
@@ -550,40 +551,133 @@ class Display:
             }
         }
 
-    def load_custom_menu(self):
+    def load_custom_menu(self, game_modes, selected):
         self.screen.blit(self.background, (0, 0))
         self.draw_main_text('Load Custom Mode', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
+        panel_width = self.screen_width // 2 - 50
+        left_panel_x = 50
+        right_panel_x = self.screen_width // 2 + 50
+
+        list_start_y = self.content_start_y + self.element_spacing
+        item_width = self.regular_font_size * 21
+        item_height = self.regular_font_size * 1.5
+        max_visible_items = 5
+
+        self.draw_section_text('Game Modes', self.LIGHT_BROWN, left_panel_x + item_width // 2, self.content_start_y)
+        self.draw_section_text('Details', self.LIGHT_BROWN, right_panel_x + panel_width // 2, self.content_start_y)
+
+        game_mode_areas = []
+        for i, (gm_id, gm) in enumerate(game_modes.items()):
+            if i < max_visible_items:
+                item_y = list_start_y + i * (item_height + 25)
+
+                gm_rect = pygame.Rect(left_panel_x, item_y - item_height // 2, item_width, item_height)
+                game_mode_areas.append((gm_id, gm_rect))
+
+                if selected and gm_id == selected[0]:
+                    pygame.draw.rect(self.screen, self.HIGHLIGHT_COLOR, gm_rect, 0, 10)
+
+                pygame.draw.rect(self.screen, self.SEPARATOR_COLOR, gm_rect, 3, 10)
+
+                self.draw_text(gm.name, self.LIGHT_BROWN, left_panel_x + item_width // 2, item_y,
+                               outline_color=self.OUTLINE_COLOR)
+
+        if selected:
+            selected_gm = selected[1]
+
+            gm_text = f"Game Mode: {selected_gm.base_gm if not selected_gm.can_change_gm else '-'}"
+            self.draw_text(gm_text, self.LIGHT_BROWN, right_panel_x + panel_width // 2,
+                           self.content_start_y + self.element_spacing,
+                           outline_color=self.OUTLINE_COLOR)
+
+            difficulty_text = f"Difficulty: {selected_gm.difficulty if not selected_gm.can_change_difficulty else '-'}"
+            self.draw_text(difficulty_text, self.LIGHT_BROWN, right_panel_x + panel_width // 2,
+                           self.content_start_y + 2 * self.element_spacing, outline_color=self.OUTLINE_COLOR)
+
+            show_board_btn = self.draw_button('Show Board', self.content_start_y + 3 * self.element_spacing,
+                                              x_offset=panel_width // 2 + 50)
+        else:
+            show_board_btn = None
+
         left_offset = -int(self.screen_width * 0.3)
+        right_offset = int(self.screen_width * 0.3)
+
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
+        refresh_btn = self.draw_button('Refresh', self.bottom_margin)
+        load_btn = self.draw_button('Load', self.bottom_margin, x_offset=right_offset, disabled=not selected)
 
-        return go_back_btn
+        return {
+            'game_modes_areas': game_mode_areas,
+            'buttons': {
+                'show_board': show_board_btn,
+                'back': go_back_btn,
+                'refresh': refresh_btn,
+                'load': load_btn
+            }
+        }
 
-    def game_settings_menu(self, game_mode, difficulty, board_y):
+    def preview_board(self, board_height, board):
+        square_size = self.screen_height // max(8, board_height)
+        board_height_px = board_height * square_size
+        board_width_px = 8 * square_size
+        board_start_y = (self.screen_height - board_height_px) // 2
+        board_start_x = self.screen_width // 2 - board_width_px // 2
+
+        for row in range(board_height):
+            for col in range(8):
+                square_color = self.BOARD_COLORS[(row + col) % 2]
+                square_rect = pygame.Rect(
+                    board_start_x + col * square_size,
+                    board_start_y + row * square_size,
+                    square_size,
+                    square_size
+                )
+                pygame.draw.rect(self.screen, square_color, square_rect)
+
+                piece = board[row][col]
+                if piece and piece[:2] in self.piece_images:
+                    image = pygame.transform.scale(self.piece_images[piece[:2]],
+                                                   (square_size - 10, square_size - 10))
+                    self.screen.blit(image,
+                                     ((col * square_size + 5) + board_start_x,
+                                      (row * square_size + 5) + board_start_y))
+
+        return pygame.Rect(board_start_x, board_start_y, board_width_px, board_height_px)
+
+    def game_settings_menu(self, game_mode=None, difficulty=None, board_height=None):
         self.screen.blit(self.background, (0, 0))
         self.draw_main_text('Play', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
-        first_section_y = self.content_start_y
-        second_section_y = first_section_y + self.section_spacing
-        third_section_y = second_section_y + self.section_spacing
+        i = 0
+        sections_y = (self.content_start_y, self.content_start_y + self.section_spacing,
+                      self.content_start_y + 2 * self.section_spacing)
 
-        game_mode_btn, = self.draw_section_row(
-            'Game Mode', game_mode, first_section_y,
-            [('>', None, False)]
-        )
-        self.draw_separator(first_section_y + self.element_spacing // 2)
+        game_mode_btn = None
+        if game_mode:
+            game_mode_btn, = self.draw_section_row(
+                'Game Mode', game_mode, sections_y[i],
+                [('>', None, False)]
+            )
+            self.draw_separator(sections_y[i] + self.element_spacing // 2)
+            i += 1
 
-        difficulty_btn, = self.draw_section_row(
-            'Difficulty', difficulty, second_section_y,
-            [('>', None, False)]
-        )
-        self.draw_separator(second_section_y + self.element_spacing // 2)
+        difficulty_btn = None
+        if difficulty:
+            difficulty_btn, = self.draw_section_row(
+                'Difficulty', difficulty, sections_y[i],
+                [('>', None, False)]
+            )
+            self.draw_separator(sections_y[i] + self.element_spacing // 2)
+            i += 1
 
-        add_btn, rm_btn = self.draw_section_row(
-            'Board Height', str(board_y), third_section_y,
-            [('+', None, False), ('-', None, False)]
-        )
-        self.draw_separator(third_section_y + self.element_spacing // 2)
+        add_btn = rm_btn = None
+        if board_height:
+            add_btn, rm_btn = self.draw_section_row(
+                'Board Height', str(board_height), sections_y[i],
+                [('+', None, False), ('-', None, False)]
+            )
+            self.draw_separator(sections_y[i] + self.element_spacing // 2)
 
         left_offset = -int(self.screen_width * 0.3)
         right_offset = int(self.screen_width * 0.3)

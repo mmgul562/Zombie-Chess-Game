@@ -3,20 +3,13 @@ from enum import Enum
 
 
 class GameMode(Enum):
-    SURVIVE_THE_LONGEST = 1
-    CAPTURE_THE_MOST = 2
-    BLOCK_THE_BORDER = 3
-    BLOCK_AND_CLEAR = 4
+    SURVIVE_THE_LONGEST = 'Survive The Longest'
+    CAPTURE_THE_MOST = 'Capture The Most'
+    BLOCK_THE_BORDER = 'Block The Border'
+    BLOCK_AND_CLEAR = 'Block And Clear'
 
     def __str__(self):
-        if self.name == 'SURVIVE_THE_LONGEST':
-            return 'Survive The Longest'
-        elif self.name == 'CAPTURE_THE_MOST':
-            return 'Capture The Most'
-        elif self.name == 'BLOCK_THE_BORDER':
-            return 'Block The Border'
-        elif self.name == 'BLOCK_AND_CLEAR':
-            return 'Block And Clear'
+        return self.value
 
     def switch(self):
         game_modes = list(GameMode)
@@ -26,10 +19,11 @@ class GameMode(Enum):
 
 
 class Difficulty(Enum):
-    EASY = 1
-    NORMAL = 2
-    HARD = 3
-    EXTREME = 3.5
+    # (number of zombies, chance of spawning %)
+    EASY = ((0, 50), (1, 50))
+    NORMAL = ((0, 30), (1, 60), (2, 10))
+    HARD = ((0, 20), (1, 40), (2, 40))
+    EXTREME = ((0, 20), (1, 50), (2, 30))
 
     def __str__(self):
         return self.name.capitalize()
@@ -39,6 +33,17 @@ class Difficulty(Enum):
         current_index = difficulties.index(self)
         next_index = (current_index + 1) % len(difficulties)
         return difficulties[next_index]
+
+    def roll_n(self):
+        distribution = self.value
+        roll = random.randint(1, 100)
+        cumulative_chance = 0
+        for count, chance in distribution:
+            cumulative_chance += chance
+            if roll <= cumulative_chance:
+                return count
+
+        return distribution[-1][0]
 
 
 class TurnResult(Enum):
@@ -50,13 +55,16 @@ class TurnResult(Enum):
 
 
 class Gameplay:
-    def __init__(self, board_height, difficulty):
+    def __init__(self, board_height, difficulty, board=None):
         self.zombie_spots = set({})
-        self.board = [
-            [None for _ in range(8)] for _ in range(board_height - 2)
-        ]
-        self.board.append([f'pp{i}' for i in range(8)])
-        self.board.append(['pr8', 'pk9', 'pb10', 'pq11', 'pK12', 'pb13', 'pk14', 'pr15'])
+        if board is None:
+            self.board = [
+                [None for _ in range(8)] for _ in range(board_height - 2)
+            ]
+            self.board.append([f'pp{i}' for i in range(8)])
+            self.board.append(['pr8', 'pk9', 'pb10', 'pq11', 'pK12', 'pb13', 'pk14', 'pr15'])
+        else:
+            self.board = [[val for val in row] for row in board]
         self.selected_piece = None
         self.last_moved_piece = None
         self.turns = 1
@@ -71,6 +79,17 @@ class Gameplay:
         ]
         self.board_height = board_height
         self.difficulty = difficulty
+
+    @staticmethod
+    def init_game_mode(board_height, difficulty, game_mode, board=None):
+        if game_mode == GameMode.SURVIVE_THE_LONGEST:
+            return SurviveTheLongest(board_height, difficulty, board)
+        elif game_mode == GameMode.CAPTURE_THE_MOST:
+            return CaptureTheMost(board_height, difficulty, board)
+        elif game_mode == GameMode.BLOCK_THE_BORDER:
+            return BlockTheBorder(board_height, difficulty, board)
+        elif game_mode == GameMode.BLOCK_AND_CLEAR:
+            return BlockAndClear(board_height, difficulty, board)
 
     def get_piece_at(self, row, col):
         return self.board[row][col]
@@ -144,15 +163,14 @@ class Gameplay:
             else:
                 self.board[end_row][end_col] = self.board[start_row][start_col]
 
-            piece = self.board[start_row][start_col]
-            if piece == 'pr8':
-                self.castling_combinations.remove(('pr8', 'pK12'))
-                self.castling_combinations.remove(('pK12', 'pr8'))
-            elif piece == 'pr15':
-                self.castling_combinations.remove(('pr15', 'pK12'))
-                self.castling_combinations.remove(('pK12', 'pr15'))
-            elif piece == 'pK12':
-                self.castling_combinations = None
+            if self.castling_combinations:
+                piece = self.board[start_row][start_col]
+                if piece == 'pr8':
+                    del self.castling_combinations[:2]
+                elif piece == 'pr15':
+                    del self.castling_combinations[2:4]
+                elif piece == 'pK12':
+                    self.castling_combinations = None
 
             self.board[start_row][start_col] = None
             self.turns += 1
@@ -207,11 +225,11 @@ class Gameplay:
                 if result == TurnResult.CHECKMATE:
                     return TurnResult.CHECKMATE
                 moved_zombies.add(pos)
-        return self.create_new_zombies(random.randint(0, int(self.difficulty.value)))
+
+        return self.create_new_zombies(self.difficulty.roll_n())
 
     def move_walker(self, i, j):
         captured = False
-        pos = None
         if i + 1 == self.board_height or self.is_zombie(i + 1, j):  # down occupied, go right
             if j + 1 == 8 or self.is_zombie(i, j + 1):  # right occupied, go left
                 if self.is_zombie(i, j - 1):  # all sides occupied
@@ -249,7 +267,6 @@ class Gameplay:
         if moves_left <= 0:
             return TurnResult.OK, None
         captured = False
-        new_i, new_j = i, j
         if i + 1 == self.board_height or self.is_zombie(i + 1, j):  # down occupied, go right
             if j + 1 == 8 or self.is_zombie(i, j + 1):  # right occupied, go left
                 if j - 1 == -1 or self.is_zombie(i, j - 1):  # all sides occupied
@@ -314,7 +331,6 @@ class Gameplay:
 
     def move_infected(self, i, j):
         captured = False
-        pos = None
         if i + 1 == self.board_height or self.is_zombie(i + 1, j):  # down occupied, go right
             if j + 1 == 8 or self.is_zombie(i, j + 1):  # right occupied, go left
                 if j - 1 == -1 or self.is_zombie(i, j - 1):  # all sides occupied
@@ -476,8 +492,8 @@ class Gameplay:
 
 
 class SurviveTheLongest(Gameplay):
-    def __init__(self, board_height, difficulty):
-        super().__init__(board_height, difficulty)
+    def __init__(self, board_height, difficulty, board=None):
+        super().__init__(board_height, difficulty, board)
         self.game_mode = GameMode.SURVIVE_THE_LONGEST
 
     def endgame_info(self, won):
@@ -485,8 +501,8 @@ class SurviveTheLongest(Gameplay):
 
 
 class CaptureTheMost(Gameplay):
-    def __init__(self, board_height, difficulty):
-        super().__init__(board_height, difficulty)
+    def __init__(self, board_height, difficulty, board=None):
+        super().__init__(board_height, difficulty, board)
         self.game_mode = GameMode.CAPTURE_THE_MOST
 
     def endgame_info(self, won):
@@ -494,8 +510,8 @@ class CaptureTheMost(Gameplay):
 
 
 class BlockTheBorder(Gameplay):
-    def __init__(self, board_height, difficulty):
-        super().__init__(board_height, difficulty)
+    def __init__(self, board_height, difficulty, board=None):
+        super().__init__(board_height, difficulty, board)
         self.game_mode = GameMode.BLOCK_THE_BORDER
 
     def get_free_border_spots(self):
@@ -536,7 +552,8 @@ class BlockTheBorder(Gameplay):
 
         if self.pieces_left < 8:
             return TurnResult.CHECKMATE
-        return self.create_new_zombies(random.randint(0, int(self.difficulty.value)))
+
+        return self.create_new_zombies(self.difficulty.roll_n())
 
     def create_new_zombies(self, n):
         new_spots, zombie_spots = self.get_free_border_spots()
@@ -565,8 +582,8 @@ class BlockTheBorder(Gameplay):
 
 
 class BlockAndClear(BlockTheBorder):
-    def __init__(self, board_height, difficulty):
-        super().__init__(board_height, difficulty)
+    def __init__(self, board_height, difficulty, board=None):
+        super().__init__(board_height, difficulty, board)
         self.game_mode = GameMode.BLOCK_AND_CLEAR
 
     def is_board_clear(self):
