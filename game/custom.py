@@ -2,7 +2,6 @@ import json
 import random
 import string
 import os
-from datetime import datetime
 
 from game.game_modes import GameMode, Difficulty
 
@@ -29,6 +28,7 @@ class CustomGameModeCreator:
         self.error_msg = None
 
     def reset(self):
+        self.game.name = ''
         self.game.can_change_gm = True
         self.game.can_change_difficulty = True
         self.selected_piece = None
@@ -81,9 +81,12 @@ class CustomGameModeCreator:
             self.is_name_ok = False
 
     def save(self):
-        timestamp = datetime.now().strftime('%H%M%S')
-        random_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
-        filename = f'custom_gm/{timestamp}{random_string}.json'
+        while True:
+            random_string = ''.join(random.choices(string.digits + string.ascii_letters, k=12))
+            filename = f'custom_gm/{random_string}.json'
+
+            if not os.path.exists(filename):
+                break
 
         index = 0
         for i in range(self.game.board_height):
@@ -202,7 +205,7 @@ class CustomGameModeLoader:
                     if parsed_gm is None:
                         success = False
                         continue
-                    self.game_modes[file] = parsed_gm
+                    self.game_modes[file[:-5]] = parsed_gm
             except (json.JSONDecodeError, IOError):
                 self.error_msg = f'Error reading .json file {file}'
                 success = False

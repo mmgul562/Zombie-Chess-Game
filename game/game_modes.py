@@ -58,6 +58,9 @@ class Gameplay:
     def __init__(self, board_height, difficulty, board=None):
         self.zombie_spots = set({})
         if board is None:
+            if board_height < 2:
+                raise ValueError('Board height cannot be lower than 2')
+
             self.board = [
                 [None for _ in range(8)] for _ in range(board_height - 2)
             ]
@@ -111,9 +114,6 @@ class Gameplay:
 
     def is_pawn(self, row, col):
         return self.board[row][col] and self.board[row][col][:2] == 'pp'
-
-    def is_selected(self, row, col):
-        return self.selected_piece == (row, col)
 
     def is_checkmate(self, i, j):
         return self.board[i][j] and self.board[i][j][:2] == 'pK'
@@ -595,8 +595,12 @@ class BlockAndClear(BlockTheBorder):
 
     def create_new_zombies(self, n):
         new_spots, zombie_spots = self.get_free_border_spots()
-        if not new_spots and not zombie_spots and self.is_board_clear():
-            return TurnResult.WIN
+        if not new_spots and not zombie_spots:
+            if self.is_board_clear():
+                return TurnResult.WIN
+            else:
+                return TurnResult.OK
+
         new_spots = random.sample(new_spots, n)
         for i in new_spots:
             zombie_chance = random.randint(1, 100)

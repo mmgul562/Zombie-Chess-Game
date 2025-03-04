@@ -31,6 +31,8 @@ class Game:
         self.custom_creator = CustomGameModeCreator()
         self.custom_loader = CustomGameModeLoader()
 
+        self._scroll_offset = 0
+        self._max_scroll = 0
         self._displayed_board_part = 0
         self._promotion_col = 0
 
@@ -189,45 +191,55 @@ class Game:
                 self.current_state = GameState.MENU
 
     def handle_load_custom_state(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
+        if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_pos = pygame.mouse.get_pos()
+
+            if event.button == pygame.BUTTON_WHEELUP:
+                self._scroll_offset = max(0, self._scroll_offset - 1)
+            elif event.button == pygame.BUTTON_WHEELDOWN:
+                self._scroll_offset = min(self._max_scroll, self._scroll_offset + 1)
+
             custom_info = self.display.load_custom_menu(self.custom_loader.game_modes,
-                                                        self.custom_loader.selected_gm)
-            buttons = custom_info['buttons']
+                                                        self.custom_loader.selected_gm,
+                                                        self._scroll_offset)
 
-            if buttons['back'].collidepoint(mouse_pos):
-                self.current_state = GameState.CUSTOM_MENU
-            elif buttons['refresh'].collidepoint(mouse_pos):
-                if not self.custom_loader.get_all():
-                    self.current_state = GameState.LOADING_FAILURE
-            elif buttons['show_board'] and buttons['show_board'].collidepoint(mouse_pos):
-                self.display.set_popup_background()
-                self.current_state = GameState.BOARD_PREVIEW
-            elif buttons['load'].collidepoint(mouse_pos):
-                if self.custom_loader.selected_gm:
-                    selected_gm = self.custom_loader.selected_gm[1]
+            max_visible_items = custom_info['max_items']
+            total_items = len(self.custom_loader.game_modes)
+            self._max_scroll = max(0, total_items - max_visible_items)
 
-                    if not selected_gm.can_change_gm:
-                        self.gameplay = Gameplay.init_game_mode(selected_gm.board_height, selected_gm.difficulty,
-                                                                selected_gm.base_gm, selected_gm.board)
-                    else:
-                        self.gameplay.difficulty = selected_gm.difficulty
-                        self.gameplay.board_height = selected_gm.board_height
-                        self.gameplay.board = [[val for val in row] for row in selected_gm.board]
+            if event.button == pygame.BUTTON_LEFT:
+                buttons = custom_info['buttons']
+                if buttons['back'].collidepoint(mouse_pos):
+                    self.current_state = GameState.CUSTOM_MENU
+                elif buttons['refresh'].collidepoint(mouse_pos):
+                    if not self.custom_loader.get_all():
+                        self.current_state = GameState.LOADING_FAILURE
+                elif buttons['show_board'] and buttons['show_board'].collidepoint(mouse_pos):
+                    self.display.set_popup_background()
+                    self.current_state = GameState.BOARD_PREVIEW
+                elif buttons['load'].collidepoint(mouse_pos):
+                    if self.custom_loader.selected_gm:
+                        selected_gm = self.custom_loader.selected_gm[1]
+                        if not selected_gm.can_change_gm:
+                            self.gameplay = Gameplay.init_game_mode(selected_gm.board_height, selected_gm.difficulty,
+                                                                    selected_gm.base_gm, selected_gm.board)
+                        else:
+                            self.gameplay.difficulty = selected_gm.difficulty
+                            self.gameplay.board_height = selected_gm.board_height
+                            self.gameplay.board = [[val for val in row] for row in selected_gm.board]
+                        if selected_gm.can_change_gm or selected_gm.can_change_difficulty:
+                            self.current_state = GameState.CUSTOM_SETTINGS
+                        else:
+                            self.current_state = GameState.PLAYING
+                    elif self.custom_loader.error_msg:
+                        self.current_state = GameState.LOADING_FAILURE
 
-                    if selected_gm.can_change_gm or selected_gm.can_change_difficulty:
-                        self.current_state = GameState.CUSTOM_SETTINGS
-                    else:
-                        self.current_state = GameState.PLAYING
-                elif self.custom_loader.error_msg:
-                    self.current_state = GameState.LOADING_FAILURE
-
-            for gm_id, rect in custom_info['game_modes_areas']:
-                if rect.collidepoint(mouse_pos):
-                    if self.custom_loader.selected_gm and self.custom_loader.selected_gm[0] == gm_id:
-                        self.custom_loader.unselect_gm()
-                    else:
-                        self.custom_loader.select_gm(gm_id)
+                for gm_id, rect in custom_info['game_modes_areas']:
+                    if rect.collidepoint(mouse_pos):
+                        if self.custom_loader.selected_gm and self.custom_loader.selected_gm[0] == gm_id:
+                            self.custom_loader.unselect_gm()
+                        else:
+                            self.custom_loader.select_gm(gm_id)
 
     def handle_board_preview_state(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -498,7 +510,7 @@ class Game:
                     additional_info = self.custom_creator.error_msg
                 self.display.information_menu(main_text, 'Go Back', 'Main Menu', additional_info=additional_info)
             elif self.current_state == GameState.LOAD_CUSTOM:
-                self.display.load_custom_menu(self.custom_loader.game_modes, self.custom_loader.selected_gm)
+                self.display.load_custom_menu(self.custom_loader.game_modes, self.custom_loader.selected_gm, self._scroll_offset)
             elif self.current_state == GameState.BOARD_PREVIEW:
                 self.display.preview_board(self.custom_loader.selected_gm[1].board_height,
                                            self.custom_loader.selected_gm[1].board)
@@ -533,6 +545,6 @@ class Game:
                                               additional_info=self.gameplay.endgame_info(self.won))
 
             pygame.display.flip()
-            clock.tick(30)
+            clock.tick(20)
 
         pygame.quit()

@@ -521,7 +521,7 @@ class Display:
             }
         }
 
-    def load_custom_menu(self, game_modes, selected):
+    def load_custom_menu(self, game_modes, selected, scroll_offset):
         self.screen.blit(self.background, (0, 0))
         self.draw_main_text('Load Custom Mode', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
@@ -530,32 +530,52 @@ class Display:
         right_panel_x = self.screen_width // 2 + 50
 
         list_start_y = self.content_start_y + self.element_spacing
+        panel_height = self.bottom_margin - list_start_y - self.section_spacing
         item_width = self.regular_font_size * 21
         item_height = self.regular_font_size * 1.5
-        max_visible_items = 5
+        item_spacing = 25 * self.scale_factor
+        max_visible_items = int(panel_height // (item_height + item_spacing))
+
+        sidebar_width = 20 * self.scale_factor
+        sidebar_x = left_panel_x + panel_width + 10
+        sidebar_y = list_start_y - 50 * self.scale_factor
 
         self.draw_section_text('Game Modes', self.LIGHT_BROWN, left_panel_x + item_width // 2, self.content_start_y)
         self.draw_section_text('Details', self.LIGHT_BROWN, right_panel_x + panel_width // 2, self.content_start_y)
 
+        total_items = len(game_modes)
+        max_scroll = max(0, total_items - max_visible_items)
+
+        if total_items > max_visible_items:
+            sidebar_bg_rect = pygame.Rect(sidebar_x, sidebar_y, sidebar_width, panel_height)
+            pygame.draw.rect(self.screen, self.LIGHT_BROWN, sidebar_bg_rect, 0, 5)
+
+            scrollbar_height = panel_height * (max_visible_items / total_items)
+            scrollbar_y = sidebar_y + (panel_height - scrollbar_height) * (scroll_offset / max_scroll)
+
+            scrollbar_outline = pygame.Rect(sidebar_x - 5, scrollbar_y - 5, sidebar_width + 10, scrollbar_height + 10)
+            scrollbar_rect = pygame.Rect(sidebar_x, scrollbar_y, sidebar_width, scrollbar_height)
+            pygame.draw.rect(self.screen, self.DARK_BROWN, scrollbar_outline, 0, 5)
+            pygame.draw.rect(self.screen, self.YELLOW, scrollbar_rect, 0, 5)
+
         game_mode_areas = []
-        for i, (gm_id, gm) in enumerate(game_modes.items()):
-            if i < max_visible_items:
-                item_y = list_start_y + i * (item_height + 25)
+        items = list(game_modes.items())
+        visible_items = items[scroll_offset:scroll_offset + max_visible_items]
 
-                gm_rect = pygame.Rect(left_panel_x, item_y - item_height // 2, item_width, item_height)
-                game_mode_areas.append((gm_id, gm_rect))
+        for i, (gm_id, gm) in enumerate(visible_items):
+            item_y = list_start_y + i * (item_height + 25)
+            gm_rect = pygame.Rect(left_panel_x, item_y - item_height // 2, item_width, item_height)
+            game_mode_areas.append((gm_id, gm_rect))
 
-                if selected and gm_id == selected[0]:
-                    pygame.draw.rect(self.screen, self.HIGHLIGHT_COLOR, gm_rect, 0, 10)
+            if selected and gm_id == selected[0]:
+                pygame.draw.rect(self.screen, self.HIGHLIGHT_COLOR, gm_rect, 0, 10)
 
-                pygame.draw.rect(self.screen, self.SEPARATOR_COLOR, gm_rect, 3, 10)
-
-                self.draw_text(gm.name, self.LIGHT_BROWN, left_panel_x + item_width // 2, item_y,
-                               outline_color=self.OUTLINE_COLOR)
+            pygame.draw.rect(self.screen, self.SEPARATOR_COLOR, gm_rect, 3, 10)
+            self.draw_text(gm.name, self.LIGHT_BROWN, left_panel_x + item_width // 2, item_y,
+                           outline_color=self.OUTLINE_COLOR)
 
         if selected:
             selected_gm = selected[1]
-
             gm_text = f"Game Mode: {selected_gm.base_gm if not selected_gm.can_change_gm else '-'}"
             self.draw_text(gm_text, self.LIGHT_BROWN, right_panel_x + panel_width // 2,
                            self.content_start_y + self.element_spacing,
@@ -578,6 +598,7 @@ class Display:
         load_btn = self.draw_button('Load', self.bottom_margin, x_offset=right_offset, disabled=not selected)
 
         return {
+            'max_items': max_visible_items,
             'game_modes_areas': game_mode_areas,
             'buttons': {
                 'show_board': show_board_btn,
