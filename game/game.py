@@ -10,17 +10,31 @@ class GameState(Enum):
     CUSTOM_MENU = 1
     CREATE_CUSTOM = 2
     SAVE_CUSTOM = 3
-    SAVING_STATUS = 4
-    LOAD_CUSTOM = 5
-    BOARD_PREVIEW = 6
-    LOADING_FAILURE = 7
-    CUSTOM_SETTINGS = 8
-    SETTINGS = 9
-    GAME_OVER = 10
-    PLAYING = 11
-    PAWN_PROMOTION = 12
-    HELP_MENU = 13
-    ENDGAME_BOARD = 14
+    LOAD_CUSTOM = 4
+    HELP_MENU = 5
+
+    SAVING_STATUS = 21
+    BOARD_PREVIEW = 22
+    LOADING_FAILURE = 23
+
+    CUSTOM_SETTINGS = 31
+    SETTINGS = 32
+
+    PLAYING = 41
+    GAME_OVER = 42
+    PAWN_PROMOTION = 43
+    ENDGAME_BOARD = 44
+
+    HELP_RULES_1 = 51
+    HELP_RULES_2 = 52
+    HELP_GAME_MODES = 54
+    HELP_DIFFICULTIES = 55
+
+    HELP_ZOMBIES = 53
+    HELP_WALKER = 531
+    HELP_INFECTED = 532
+    HELP_STOMPER = 533
+    HELP_EXPLOSIVE = 534
 
 
 class Game:
@@ -46,7 +60,6 @@ class Game:
             (screen_width, screen_height if self.fullscreen else bordered_screen_height),
             pygame.FULLSCREEN if self.fullscreen else pygame.SHOWN)
         self.display = Display(self.screen, screen_width, screen_height, screen_border_height)
-        self._help_section = None
 
         pygame.display.set_caption('Pawnbies')
         self.current_state = GameState.MENU
@@ -410,19 +423,92 @@ class Game:
                     self.current_state = GameState.PLAYING
 
     def handle_help_menu_state(self, event):
-        if self._help_section is None:
-            self._help_section = self.display.help_menu()
-
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
+            buttons = self.display.help_menu()
+
+            rules_btn = buttons[0]
+            zombies_btn = buttons[1]
+            game_modes_btn = buttons[2]
+            difficulties_btn = buttons[3]
+            back_btn = buttons[4]
+
             mouse_pos = pygame.mouse.get_pos()
-            back_btn = self._help_section[1]
             if back_btn.collidepoint(mouse_pos):
                 self.current_state = GameState.MENU
-                self._help_section = None
+            elif rules_btn.collidepoint(mouse_pos):
+                self.current_state = GameState.HELP_RULES_1
+            elif zombies_btn.collidepoint(mouse_pos):
+                self.current_state = GameState.HELP_ZOMBIES
+            elif game_modes_btn.collidepoint(mouse_pos):
+                self.current_state = GameState.HELP_GAME_MODES
+            elif difficulties_btn.collidepoint(mouse_pos):
+                self.current_state = GameState.HELP_DIFFICULTIES
 
-        if event.type == pygame.MOUSEWHEEL:
-            help_section = self._help_section[0]
-            help_section.handle_event(event)
+    def handle_help_rules_state(self, event, page):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
+            mouse_pos = pygame.mouse.get_pos()
+            if page == 1:
+                back_btn, next_btn = self.display.help_rules_1_menu()
+
+                if back_btn.collidepoint(mouse_pos):
+                    self.current_state = GameState.HELP_MENU
+                elif next_btn.collidepoint(mouse_pos):
+                    self.current_state = GameState.HELP_RULES_2
+            else:
+                back_btn = self.display.help_rules_2_menu()
+
+                if back_btn.collidepoint(mouse_pos):
+                    self.current_state = GameState.HELP_RULES_1
+
+    def handle_help_zombies_state(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
+            mouse_pos = pygame.mouse.get_pos()
+            walker_btn, infected_btn, stomper_btn, explosive_btn, back_btn = self.display.help_zombies_menu()
+
+            if back_btn.collidepoint(mouse_pos):
+                self.current_state = GameState.HELP_MENU
+            elif walker_btn.collidepoint(mouse_pos):
+                self.display.set_popup_background()
+                self.current_state = GameState.HELP_WALKER
+            elif infected_btn.collidepoint(mouse_pos):
+                self.display.set_popup_background()
+                self.current_state = GameState.HELP_INFECTED
+            elif stomper_btn.collidepoint(mouse_pos):
+                self.display.set_popup_background()
+                self.current_state = GameState.HELP_STOMPER
+            elif explosive_btn.collidepoint(mouse_pos):
+                self.display.set_popup_background()
+                self.current_state = GameState.HELP_EXPLOSIVE
+
+    def handle_help_zombie_state(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            mouse_pos = pygame.mouse.get_pos()
+
+            if self.current_state == GameState.HELP_WALKER:
+                area = self.display.zombie_info_popup('zw', '1 each turn', 'Down -> Right -> Left', 'None')
+            elif self.current_state == GameState.HELP_INFECTED:
+                area = self.display.zombie_info_popup('zi', '1 each turn', 'Down -> Right -> Left',
+                                                      'Turns captured pieces into Walkers')
+            elif self.current_state == GameState.HELP_STOMPER:
+                area = self.display.zombie_info_popup('zs', '1-3 each turn', 'Down -> Right -> Left',
+                                                      'Moves 1 more time when capturing, up to 3 times')
+            else:
+                area = self.display.zombie_info_popup('ze', '1 each turn', 'Random',
+                                                      'Removes ALL adjacent pieces (not diagonal)',
+                                                      'when captured')
+
+            if not area.collidepoint(mouse_pos):
+                self.current_state = GameState.HELP_ZOMBIES
+
+    def handle_help_section_state(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
+            if self.current_state == GameState.HELP_GAME_MODES:
+                back_btn = self.display.help_game_modes_menu()
+            else:
+                back_btn = self.display.help_difficulties_menu()
+
+            if back_btn.collidepoint(pygame.mouse.get_pos()):
+                self.current_state = GameState.HELP_MENU
 
     def handle_events(self):
         for event in pygame.event.get():
@@ -474,6 +560,18 @@ class Game:
                 self.handle_pawn_promotion_state(event)
             elif self.current_state == GameState.HELP_MENU:
                 self.handle_help_menu_state(event)
+            elif self.current_state == GameState.HELP_RULES_1:
+                self.handle_help_rules_state(event, 1)
+            elif self.current_state == GameState.HELP_RULES_2:
+                self.handle_help_rules_state(event, 2)
+            elif self.current_state == GameState.HELP_ZOMBIES:
+                self.handle_help_zombies_state(event)
+            elif self.current_state in (GameState.HELP_WALKER, GameState.HELP_INFECTED,
+                                        GameState.HELP_STOMPER, GameState.HELP_EXPLOSIVE):
+                self.handle_help_zombie_state(event)
+            elif self.current_state in (GameState.HELP_GAME_MODES,
+                                        GameState.HELP_DIFFICULTIES):
+                self.handle_help_section_state(event)
         return True
 
     def run(self):
@@ -510,7 +608,8 @@ class Game:
                     additional_info = self.custom_creator.error_msg
                 self.display.information_menu(main_text, 'Go Back', 'Main Menu', additional_info=additional_info)
             elif self.current_state == GameState.LOAD_CUSTOM:
-                self.display.load_custom_menu(self.custom_loader.game_modes, self.custom_loader.selected_gm, self._scroll_offset)
+                self.display.load_custom_menu(self.custom_loader.game_modes, self.custom_loader.selected_gm,
+                                              self._scroll_offset)
             elif self.current_state == GameState.BOARD_PREVIEW:
                 self.display.preview_board(self.custom_loader.selected_gm[1].board_height,
                                            self.custom_loader.selected_gm[1].board)
@@ -523,9 +622,29 @@ class Game:
                 game_mode = self.gameplay.game_mode if selected_gm.can_change_gm else None
                 self.display.game_settings_menu(game_mode, difficulty)
             elif self.current_state == GameState.HELP_MENU:
-                if self._help_section:
-                    help_section = self._help_section[0]
-                    self.display.update_help_menu(help_section)
+                self.display.help_menu()
+            elif self.current_state == GameState.HELP_RULES_1:
+                self.display.help_rules_1_menu()
+            elif self.current_state == GameState.HELP_RULES_2:
+                self.display.help_rules_2_menu()
+            elif self.current_state == GameState.HELP_ZOMBIES:
+                self.display.help_zombies_menu()
+            elif self.current_state == GameState.HELP_WALKER:
+                self.display.zombie_info_popup('zw', '1 each turn', 'Down -> Right -> Left', 'None')
+            elif self.current_state == GameState.HELP_INFECTED:
+                self.display.zombie_info_popup('zi', '1 each turn', 'Down -> Right -> Left',
+                                               'Turns captured pieces into Walkers')
+            elif self.current_state == GameState.HELP_STOMPER:
+                self.display.zombie_info_popup('zs', '1-3 each turn', 'Down -> Right -> Left',
+                                               'Moves 1 more time when capturing, up to 3 times')
+            elif self.current_state == GameState.HELP_EXPLOSIVE:
+                self.display.zombie_info_popup('ze', '1 each turn', 'Random',
+                                               'Removes ALL adjacent pieces (not diagonal)',
+                                               'when captured')
+            elif self.current_state == GameState.HELP_GAME_MODES:
+                self.display.help_game_modes_menu()
+            elif self.current_state == GameState.HELP_DIFFICULTIES:
+                self.display.help_difficulties_menu()
             elif self.current_state == GameState.SETTINGS:
                 self.display.game_settings_menu(self.gameplay.game_mode, self.gameplay.difficulty,
                                                 self.gameplay.board_height)

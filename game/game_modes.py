@@ -497,7 +497,7 @@ class SurviveTheLongest(Gameplay):
         self.game_mode = GameMode.SURVIVE_THE_LONGEST
 
     def endgame_info(self, won):
-        return f"Survived waves: {self.turns}"
+        return f"Survived turns: {self.turns}"
 
 
 class CaptureTheMost(Gameplay):

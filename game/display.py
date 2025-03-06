@@ -4,100 +4,6 @@ import random
 import os
 
 
-class ScrollableSection:
-    def __init__(self, screen, rect, font, text_color):
-        self.screen = screen
-        self.rect = rect
-        self.font = font
-        self.text_color = text_color
-        self.LIGHT_BROWN = (255, 248, 220)
-        self.DARK_BROWN = (193, 120, 50)
-
-        self.scroll_y = 0
-        self.scroll_x = 0
-        self.max_content_width = 0
-        self.content_surface = None
-        self.content_height = 0
-        self.scroll_speed = 40
-
-    def set_content(self, content_lines):
-        line_height = self.font.get_linesize()
-        padding = 10
-
-        max_line_width = 0
-        rendered_lines = []
-        for line in content_lines:
-            text_surface = self.font.render(line, True, self.text_color)
-            max_line_width = max(max_line_width, text_surface.get_width())
-            rendered_lines.append(text_surface)
-
-        self.max_content_width = max_line_width + (2 * padding)
-        self.content_height = (len(content_lines) * line_height) + (padding * 2)
-
-        self.content_surface = pygame.Surface((self.max_content_width, self.content_height))
-        self.content_surface.fill(self.DARK_BROWN)
-
-        y = padding
-        for text_surface in rendered_lines:
-            text_rect = text_surface.get_rect(left=padding, top=y)
-            self.content_surface.blit(text_surface, text_rect)
-            y += line_height
-
-    def handle_event(self, event):
-        if event.type == pygame.MOUSEWHEEL:
-            keys = pygame.key.get_mods()
-            if keys & pygame.KMOD_SHIFT:
-                self.scroll_x = max(
-                    min(self.scroll_x - (event.y * self.scroll_speed),
-                        self.max_content_width - self.rect.width),
-                    0
-                )
-            else:
-                self.scroll_y = max(
-                    min(self.scroll_y - (event.y * self.scroll_speed),
-                        self.content_height - self.rect.height),
-                    0
-                )
-
-    def draw(self):
-        if self.content_surface is None:
-            return
-
-        visible_rect = pygame.Rect(
-            self.scroll_x,
-            self.scroll_y,
-            self.rect.width,
-            self.rect.height
-        )
-        visible_surface = self.content_surface.subsurface(visible_rect)
-
-        self.screen.blit(visible_surface, self.rect)
-
-        if self.content_height > self.rect.height:
-            scroll_bar_height = (self.rect.height / self.content_height) * self.rect.height
-            scroll_bar_pos = (self.scroll_y / self.content_height) * self.rect.height
-
-            vertical_scroll_bar = pygame.Rect(
-                self.rect.right + 10,
-                self.rect.top + scroll_bar_pos,
-                5,
-                scroll_bar_height
-            )
-            pygame.draw.rect(self.screen, self.LIGHT_BROWN, vertical_scroll_bar)
-
-        if self.max_content_width > self.rect.width:
-            scroll_bar_width = (self.rect.width / self.max_content_width) * self.rect.width
-            scroll_bar_pos = (self.scroll_x / self.max_content_width) * self.rect.width
-
-            horizontal_scroll_bar = pygame.Rect(
-                self.rect.left + scroll_bar_pos,
-                self.rect.bottom + 10,
-                scroll_bar_width,
-                5
-            )
-            pygame.draw.rect(self.screen, self.LIGHT_BROWN, horizontal_scroll_bar)
-
-
 class Display:
     def __init__(self, screen, screen_width, screen_height, screen_border_height):
         self.screen = screen
@@ -137,7 +43,7 @@ class Display:
         self.small_button_height = int(self.button_height * 0.8)
 
         self.title_y = int(screen_height * 0.08)
-        self.content_start_y = int(screen_height * 0.22)
+        self.content_start_y = int(screen_height * 0.2)
         self.bottom_margin = int(screen_height * 0.9)
 
         self.main_font = pygame.font.Font('util/Roboto-Bold.ttf', self.main_font_size)
@@ -196,7 +102,7 @@ class Display:
         text_rect = text_surface.get_rect(center=(x, y_pos))
         self.screen.blit(text_surface, text_rect)
 
-    def draw_section_text(self, text, color, x, y, outline_color=None, outline_width=3):
+    def draw_section_text(self, text, color, x, y, center=True, outline_color=None, outline_width=3):
         if outline_color is None:
             outline_color = self.OUTLINE_COLOR
 
@@ -205,25 +111,37 @@ class Display:
                 if offset_x == 0 and offset_y == 0:
                     continue
                 outline_surface = self.section_font.render(text, True, outline_color)
-                outline_rect = outline_surface.get_rect(center=(x + offset_x, y + offset_y))
+                if center:
+                    outline_rect = outline_surface.get_rect(center=(x + offset_x, y + offset_y))
+                else:
+                    outline_rect = outline_surface.get_rect(x=x + offset_x, y=y + offset_y)
                 self.screen.blit(outline_surface, outline_rect)
 
         text_surface = self.section_font.render(text, True, color)
-        text_rect = text_surface.get_rect(center=(x, y))
+        if center:
+            text_rect = text_surface.get_rect(center=(x, y))
+        else:
+            text_rect = text_surface.get_rect(x=x, y=y)
         self.screen.blit(text_surface, text_rect)
 
-    def draw_text(self, text, color, x, y, outline_color=None, outline_width=2):
+    def draw_text(self, text, color, x, y, center=True, outline_color=None, outline_width=2):
         if outline_color:
             for offset_x in range(-outline_width, outline_width + 1):
                 for offset_y in range(-outline_width, outline_width + 1):
                     if offset_x == 0 and offset_y == 0:
                         continue
                     outline_surface = self.font.render(text, True, outline_color)
-                    outline_rect = outline_surface.get_rect(center=(x + offset_x, y + offset_y))
+                    if center:
+                        outline_rect = outline_surface.get_rect(center=(x + offset_x, y + offset_y))
+                    else:
+                        outline_rect = outline_surface.get_rect(x=x + offset_x, y=y + offset_y)
                     self.screen.blit(outline_surface, outline_rect)
 
         text_surface = self.font.render(text, True, color)
-        text_rect = text_surface.get_rect(center=(x, y))
+        if center:
+            text_rect = text_surface.get_rect(center=(x, y))
+        else:
+            text_rect = text_surface.get_rect(x=x, y=y)
         self.screen.blit(text_surface, text_rect)
 
     def draw_section_row(self, section_name, description, y_pos, buttons_info, disabled=False):
@@ -281,6 +199,26 @@ class Display:
 
         return button_rect
 
+    def draw_board(self, rows, cols, board, x, y, square_size):
+        for row in range(rows):
+            for col in range(cols):
+                square_color = self.BOARD_COLORS[(row + col) % 2]
+                square_rect = pygame.Rect(
+                    x + col * square_size,
+                    y + row * square_size,
+                    square_size,
+                    square_size
+                )
+                pygame.draw.rect(self.screen, square_color, square_rect)
+
+                piece = board[row][col]
+                if piece and piece[:2] in self.piece_images:
+                    image = pygame.transform.scale(self.piece_images[piece[:2]],
+                                                   (square_size - 10, square_size - 10))
+                    self.screen.blit(image,
+                                     ((col * square_size + 5) + x,
+                                      (row * square_size + 5) + y))
+
     def information_menu(self, main_text, first_btn_text, second_btn_text, additional_info=None):
         self.screen.blit(self.background, (0, 0))
         self.draw_main_text(main_text, self.LIGHT_BROWN, self.OUTLINE_COLOR)
@@ -324,7 +262,7 @@ class Display:
         create_btn = self.draw_button('Create New Mode', first_button_y)
         load_btn = self.draw_button('Load New Mode', second_button_y)
 
-        left_offset = -int(self.screen_width * 0.3)
+        left_offset = -int(self.screen_width * 0.35)
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
 
         return create_btn, load_btn, go_back_btn
@@ -333,7 +271,6 @@ class Display:
         self.screen.blit(self.background, (0, 0))
 
         board_height_px = self.screen_height * 0.7
-        square_size = min(board_height_px // board_height, self.screen_width // 16)
         square_size = board_height_px // max(8, board_height)
         board_width = square_size * 8
         board_start_x = (self.screen_width // 2) - (board_width // 2)
@@ -421,7 +358,7 @@ class Display:
                 image = pygame.transform.scale(self.piece_images[zombie], (piece_size, piece_size))
                 self.screen.blit(image, (zombie_x, zombie_y))
 
-        left_offset = -int(self.screen_width * 0.3)
+        left_offset = -int(self.screen_width * 0.35)
         right_offset = int(self.screen_width * 0.3)
 
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
@@ -476,8 +413,7 @@ class Display:
         self.draw_separator(second_section_y + self.element_spacing // 2)
 
         self.draw_section_text('Specifying a setting here will disallow any changes to that setting later',
-                               self.LIGHT_BROWN,
-                               self.screen_width // 2, third_section_y)
+                               self.LIGHT_BROWN, self.screen_width // 2, third_section_y)
 
         # name
         input_color = self.DARK_BROWN
@@ -486,7 +422,7 @@ class Display:
             input_color = self.GREY
         input_width = self.screen_width * 0.6
         input_height = self.font.get_height() * 1.5
-        input_start_x = self.screen_width // 2 - input_width // 2
+        input_start_x = (self.screen_width - input_width) // 2
         if is_focused:
             pygame.draw.rect(self.screen, self.HIGHLIGHT_COLOR,
                              (input_start_x - 2, fourth_section_y - 2, input_width + 4, input_height + 4), 6)
@@ -503,7 +439,7 @@ class Display:
                        self.screen_width // 2, fifth_section_y,
                        outline_color=self.OUTLINE_COLOR)
 
-        left_offset = -int(self.screen_width * 0.3)
+        left_offset = -int(self.screen_width * 0.35)
         right_offset = int(self.screen_width * 0.3)
 
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
@@ -525,20 +461,20 @@ class Display:
         self.screen.blit(self.background, (0, 0))
         self.draw_main_text('Load Custom Mode', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
-        panel_width = self.screen_width // 2 - 50
+        panel_width = self.screen_width // 2 - 50 * self.scale_factor
         left_panel_x = 50
-        right_panel_x = self.screen_width // 2 + 50
+        right_panel_x = self.screen_width // 2 + 50 * self.scale_factor
 
         list_start_y = self.content_start_y + self.element_spacing
         panel_height = self.bottom_margin - list_start_y - self.section_spacing
         item_width = self.regular_font_size * 21
         item_height = self.regular_font_size * 1.5
-        item_spacing = 25 * self.scale_factor
-        max_visible_items = int(panel_height // (item_height + item_spacing))
+        max_visible_items = int(panel_height // item_height - 1)
+        item_spacing = (panel_height - max_visible_items * item_height) // max_visible_items + 1
 
         sidebar_width = 20 * self.scale_factor
         sidebar_x = left_panel_x + panel_width + 10
-        sidebar_y = list_start_y - 50 * self.scale_factor
+        sidebar_y = list_start_y - 30 * self.scale_factor
 
         self.draw_section_text('Game Modes', self.LIGHT_BROWN, left_panel_x + item_width // 2, self.content_start_y)
         self.draw_section_text('Details', self.LIGHT_BROWN, right_panel_x + panel_width // 2, self.content_start_y)
@@ -563,7 +499,7 @@ class Display:
         visible_items = items[scroll_offset:scroll_offset + max_visible_items]
 
         for i, (gm_id, gm) in enumerate(visible_items):
-            item_y = list_start_y + i * (item_height + 25)
+            item_y = list_start_y + i * (item_height + item_spacing)
             gm_rect = pygame.Rect(left_panel_x, item_y - item_height // 2, item_width, item_height)
             game_mode_areas.append((gm_id, gm_rect))
 
@@ -590,7 +526,7 @@ class Display:
         else:
             show_board_btn = None
 
-        left_offset = -int(self.screen_width * 0.3)
+        left_offset = -int(self.screen_width * 0.35)
         right_offset = int(self.screen_width * 0.3)
 
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
@@ -613,26 +549,9 @@ class Display:
         board_height_px = board_height * square_size
         board_width_px = 8 * square_size
         board_start_y = (self.screen_height - board_height_px) // 2
-        board_start_x = self.screen_width // 2 - board_width_px // 2
+        board_start_x = (self.screen_width - board_width_px) // 2
 
-        for row in range(board_height):
-            for col in range(8):
-                square_color = self.BOARD_COLORS[(row + col) % 2]
-                square_rect = pygame.Rect(
-                    board_start_x + col * square_size,
-                    board_start_y + row * square_size,
-                    square_size,
-                    square_size
-                )
-                pygame.draw.rect(self.screen, square_color, square_rect)
-
-                piece = board[row][col]
-                if piece and piece[:2] in self.piece_images:
-                    image = pygame.transform.scale(self.piece_images[piece[:2]],
-                                                   (square_size - 10, square_size - 10))
-                    self.screen.blit(image,
-                                     ((col * square_size + 5) + board_start_x,
-                                      (row * square_size + 5) + board_start_y))
+        self.draw_board(board_height, 8, board, board_start_x, board_start_y, square_size)
 
         return pygame.Rect(board_start_x, board_start_y, board_width_px, board_height_px)
 
@@ -670,7 +589,7 @@ class Display:
             )
             self.draw_separator(sections_y[i] + self.element_spacing // 2)
 
-        left_offset = -int(self.screen_width * 0.3)
+        left_offset = -int(self.screen_width * 0.35)
         right_offset = int(self.screen_width * 0.3)
 
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
@@ -686,8 +605,7 @@ class Display:
         stats_y_gap = self.screen_height // (len(game_stats) + 2)
 
         for i, (stat, val) in enumerate(game_stats.items()):
-            self.draw_section_text(f'{stat}: {val}', self.LIGHT_BROWN, stats_x_padding, (i + 1) * stats_y_gap,
-                                   outline_color=self.OUTLINE_COLOR)
+            self.draw_section_text(f'{stat}: {val}', self.LIGHT_BROWN, stats_x_padding, (i + 1) * stats_y_gap)
 
         can_split = board_height > 9
         display_whole_board = displayed_board_part == 0
@@ -713,7 +631,7 @@ class Display:
                     end_row = board_height // 2
                     board_start_y = self.screen_height - (board_height // 2) * square_size
 
-        board_start_x = max(stats_sidebar_width + 50, self.screen_width // 2 - (square_size * 8) // 2)
+        board_start_x = max(stats_sidebar_width + 50, (self.screen_width - square_size * 8) // 2)
 
         highlight_surface = pygame.Surface((square_size, square_size))
         pygame.draw.rect(highlight_surface, self.HIGHLIGHT_COLOR,
@@ -796,81 +714,252 @@ class Display:
         self.screen.blit(self.background, (0, 0))
         self.draw_main_text('Help', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
-        content_rect = pygame.Rect(
-            int(self.screen_width * 0.1),
-            self.content_start_y,
-            int(self.screen_width * 0.8),
-            int(self.screen_height * 0.6)
-        )
+        first_button_y = self.content_start_y + self.element_spacing
+        second_button_y = first_button_y + self.button_height + self.element_spacing
+        third_button_y = second_button_y + self.button_height + self.element_spacing
+        fourth_button_y = third_button_y + self.button_height + self.element_spacing
 
-        help_section = ScrollableSection(
-            self.screen,
-            content_rect,
-            self.font,
-            self.LIGHT_BROWN
-        )
+        rules_btn = self.draw_button('Rules', first_button_y)
+        zombies_btn = self.draw_button('Zombies', second_button_y)
+        game_modes_btn = self.draw_button('Game Modes', third_button_y)
+        difficulties_btn = self.draw_button('Difficulties', fourth_button_y)
 
-        help_content = [
-            "1. Rules:",
-            "   Player:",
-            "       - can make all traditional chess moves",
-            "       - cannot move the same piece two turns in a row",
-            "       - can capture enemy pieces by applying the same traditional chess moveset",
-            "       - can change the height of the game board (6-14) before the game starts",
-            "       - can move the King into a checkmate position, without any warning. "
-            "The game will then end immediately",
-            "",
-            "   Enemy:",
-            "       - will spawn between 0-x zombies every turn, where x depends on the difficulty",
-            "       - will move every zombie each turn to the first spot unoccupied by another zombie, in this order:",
-            "           > downward",
-            "           > to the right",
-            "           > to the left",
-            "       - will turn player's piece into another zombie, if that piece stands in a spot that the zombie "
-            "would reach in its current move",
-            "",
-            "   The game ends when the king is turned into a zombie",
-            "",
-            "",
-            "2. Game Modes:",
-            "   - Survive The Longest:",
-            "       > player has no win condition",
-            "       > every turn passing increases the score",
-            "       > play to get the highest score",
-            "",
-            "   - Capture The Most:",
-            "       > player has no win condition",
-            "       > every zombie captured increases the score",
-            "       > play to get the highest score",
-            "",
-            "   - Block The Border:",
-            "       > player wins when every spot of the top row is occupied by the player's pieces",
-            "       > every spot of the top row currently occupied by the player's piece will not spawn any zombies",
-            "",
-            "   - Block And Clear:",
-            "       > player wins when every spot of the top row is occupied by the player's pieces "
-            "and no zombie is left on the board",
-            "       > every spot of the top row currently occupied by the player's piece will not spawn any zombies",
-            "",
-            "",
-            "3. Difficulty Levels:",
-            "   - Easy: spawns up to 1 zombie each turn, player can move the same piece every turn",
-            "   - Normal: spawns up to 1 zombie each turn",
-            "   - Hard: spawns up to 2 zombies each turn",
-            "   - Extreme: spawns up to 3 zombies each turn",
-            "",
-        ]
-
-        help_section.set_content(help_content)
-
-        left_offset = -int(self.screen_width * 0.3)
+        left_offset = -int(self.screen_width * 0.35)
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
 
-        return help_section, go_back_btn
+        return rules_btn, zombies_btn, game_modes_btn, difficulties_btn, go_back_btn
 
-    def update_help_menu(self, scrollable_section):
+    def help_rules_1_menu(self):
         self.screen.blit(self.background, (0, 0))
-        self.draw_main_text('Help', self.LIGHT_BROWN, self.OUTLINE_COLOR)
-        left_offset = -int(self.screen_width * 0.3)
-        self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
-        scrollable_section.draw()
+        self.draw_main_text('Rules 1/2', self.LIGHT_BROWN, self.OUTLINE_COLOR)
+
+        section_x = self.screen_width // 2
+
+        self.draw_section_text('The Player can make all traditional chess moves', self.LIGHT_BROWN,
+                               section_x, self.content_start_y + self.element_spacing)
+
+        board_height = (self.bottom_margin - self.content_start_y) // 2
+        square_size = board_height // 4
+        board_width = square_size * 8
+        board_left_start_x = self.screen_width // 2 - board_width - 50 * self.scale_factor
+        board_right_start_x = self.screen_width // 2 + 50 * self.scale_factor
+        board_start_y = self.content_start_y + self.element_spacing + self.section_spacing
+        board = [
+            [None for _ in range(8)],
+            [None for _ in range(8)],
+            ['pp' for _ in range(8)],
+            ['pr', 'pk', 'pb', 'pq', 'pK', 'pb', 'pk', 'pr']
+        ]
+        self.draw_board(4, 8, board, board_left_start_x, board_start_y, square_size)
+
+        board[1][5] = 'pp'
+        board[2][5] = None
+        self.draw_board(4, 8, board, board_right_start_x, board_start_y, square_size)
+
+        left_offset = -int(self.screen_width * 0.35)
+        right_offset = int(self.screen_width * 0.35)
+
+        go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
+        next_btn = self.draw_button('Next', self.bottom_margin, x_offset=right_offset)
+
+        return go_back_btn, next_btn
+
+    def help_rules_2_menu(self):
+        self.screen.blit(self.background, (0, 0))
+        self.draw_main_text('Rules 2/2', self.LIGHT_BROWN, self.OUTLINE_COLOR)
+
+        section_x = self.screen_width // 2
+
+        self.draw_section_text('The game ends when the King gets captured or turned', self.LIGHT_BROWN,
+                               section_x, self.content_start_y + self.element_spacing)
+
+        board_height = (self.bottom_margin - self.content_start_y) // 2
+        square_size = board_height // 4
+        board_width = square_size * 8
+        board_left_start_x = self.screen_width // 2 - board_width - 50 * self.scale_factor
+        board_right_start_x = self.screen_width // 2 + 50 * self.scale_factor
+        board_start_y = self.content_start_y + self.element_spacing + self.section_spacing
+        board = [
+            [None, None, None, 'zw', None, None, None, None],
+            [None, None, None, 'pK', None, None, None, None],
+        ]
+        self.draw_board(2, 8, board, board_left_start_x, board_start_y, square_size)
+
+        board[1][3] = 'zw'
+        board[0][3] = None
+        self.draw_board(2, 8, board, board_right_start_x, board_start_y, square_size)
+
+        left_offset = -int(self.screen_width * 0.35)
+        go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
+
+        return go_back_btn
+
+    def help_zombies_menu(self):
+        self.screen.blit(self.background, (0, 0))
+        self.draw_main_text('Zombies', self.LIGHT_BROWN, self.OUTLINE_COLOR)
+
+        img_space = self.screen_width // 9
+        name_y = self.content_start_y + self.section_spacing
+        img_y = name_y + self.button_height + self.element_spacing // 2
+        info_y = img_y + img_space + self.element_spacing
+
+        walker_x = img_space
+        infected_x = walker_x + 2 * img_space
+        stomper_x = infected_x + 2 * img_space
+        explosive_x = stomper_x + 2 * img_space
+
+        self.draw_section_text('Each turn new zombies will be created and all remaining moved', self.LIGHT_BROWN,
+                               self.screen_width // 2, self.content_start_y)
+
+        walker_btn = self.draw_button('Walker', name_y, x=walker_x, width=img_space)
+        self.screen.blit(pygame.transform.scale(self.piece_images['zw'], (img_space, img_space)), (walker_x, img_y))
+        self.draw_section_text('50%', self.LIGHT_BROWN, walker_x + img_space // 2, info_y)
+
+        infected_btn = self.draw_button('Infected', name_y, x=infected_x, width=img_space)
+        self.screen.blit(pygame.transform.scale(self.piece_images['zi'], (img_space, img_space)), (infected_x, img_y))
+        self.draw_section_text('30%', self.LIGHT_BROWN, infected_x + img_space // 2, info_y)
+
+        stomper_btn = self.draw_button('Stomper', name_y, x=stomper_x, width=img_space)
+        self.screen.blit(pygame.transform.scale(self.piece_images['zs'], (img_space, img_space)), (stomper_x, img_y))
+        self.draw_section_text('10%', self.LIGHT_BROWN, stomper_x + img_space // 2, info_y)
+
+        explosive_btn = self.draw_button('Explosive', name_y, x=explosive_x, width=img_space)
+        self.screen.blit(pygame.transform.scale(self.piece_images['ze'], (img_space, img_space)), (explosive_x, img_y))
+        self.draw_section_text('10%', self.LIGHT_BROWN, explosive_x + img_space // 2, info_y)
+
+        left_offset = -int(self.screen_width * 0.35)
+        go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
+
+        return walker_btn, infected_btn, stomper_btn, explosive_btn, go_back_btn
+
+    def zombie_info_popup(self, zombie, movement, order, *behaviour):
+        panel_width = self.screen_width // 2
+        panel_rect = pygame.draw.rect(self.screen, self.BROWN,
+                                      (self.screen_width // 4, 0, panel_width, self.screen_height))
+        panel_rect = pygame.draw.rect(self.screen, self.OUTLINE_COLOR,
+                                      (self.screen_width // 4, 0, panel_width, self.screen_height), 20)
+
+        img_side = self.screen_height // 4
+
+        desc_spacing = self.section_font_size * 1.5
+        info_x = self.screen_width // 2
+        mvm_y = self.title_y + img_side + self.element_spacing
+        order_y = mvm_y + self.section_spacing + desc_spacing
+        bhvr_y = order_y + self.section_spacing + desc_spacing
+
+        self.screen.blit(pygame.transform.scale(self.piece_images[zombie], (img_side, img_side)),
+                         ((self.screen_width - img_side) // 2, self.title_y))
+
+        self.draw_section_text('Movement', self.LIGHT_BROWN, info_x, mvm_y)
+        self.draw_text(movement, self.LIGHT_BROWN, info_x, mvm_y + desc_spacing,
+                       outline_color=self.OUTLINE_COLOR)
+
+        self.draw_section_text('Order of Movement', self.LIGHT_BROWN, info_x, order_y)
+        self.draw_text(order, self.LIGHT_BROWN, info_x, order_y + desc_spacing,
+                       outline_color=self.OUTLINE_COLOR)
+
+        self.draw_section_text('Special Behaviour', self.LIGHT_BROWN, info_x, bhvr_y)
+        line_spacing = bhvr_y
+        for line in behaviour:
+            line_spacing += desc_spacing
+            self.draw_text(line, self.LIGHT_BROWN, info_x, line_spacing, outline_color=self.OUTLINE_COLOR)
+
+        return panel_rect
+
+    def help_game_modes_menu(self):
+        self.screen.blit(self.background, (0, 0))
+        self.draw_main_text('Game Modes', self.LIGHT_BROWN, self.OUTLINE_COLOR)
+
+        desc_spacing = self.section_font_size * 1.5
+        start_x = self.screen_width // 2
+        survive_y = self.content_start_y
+        capture_y = survive_y + self.section_spacing + desc_spacing
+        block_y = capture_y + self.section_spacing + desc_spacing
+        block_clear_y = block_y + self.section_spacing + desc_spacing
+
+        self.draw_section_text('Survive The Longest', self.LIGHT_BROWN, start_x, survive_y)
+        self.draw_text('No win condition. The longer the game, the higher the score', self.LIGHT_BROWN,
+                       start_x, survive_y + desc_spacing, outline_color=self.OUTLINE_COLOR)
+
+        self.draw_section_text('Capture The Most', self.LIGHT_BROWN, start_x, capture_y)
+        self.draw_text('No win condition. The more you capture, the higher the score', self.LIGHT_BROWN,
+                       start_x, capture_y + desc_spacing, outline_color=self.OUTLINE_COLOR)
+
+        self.draw_section_text('Block The Border', self.LIGHT_BROWN, start_x, block_y)
+        self.draw_text('Block the upper rank (row) to win', self.LIGHT_BROWN,
+                       start_x, block_y + desc_spacing, outline_color=self.OUTLINE_COLOR)
+
+        self.draw_section_text('Block And Clear', self.LIGHT_BROWN, start_x, block_clear_y)
+        self.draw_text('Block the upper rank (row) and clear the board from zombies to win', self.LIGHT_BROWN,
+                       start_x, block_clear_y + desc_spacing, outline_color=self.OUTLINE_COLOR)
+
+        left_offset = -int(self.screen_width * 0.35)
+        go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
+
+        return go_back_btn
+
+    def help_difficulties_menu(self):
+        self.screen.blit(self.background, (0, 0))
+        self.draw_main_text('Difficulties', self.LIGHT_BROWN, self.OUTLINE_COLOR)
+
+        table_y = self.title_y + self.main_font_size
+        col_width = self.regular_font_size * 9
+        row_height = self.regular_font_size * 3
+        table_width = 5 * col_width
+        table_x = (self.screen_width - table_width) // 2
+
+        headers = ["Name", "0 Zombies", "1 Zombie", "2 Zombies", "Limit"]
+
+        rows = (
+            ("Easy", "50%", "50%", "0%", "No"),
+            ("Normal", "30%", "60%", "10%", "No"),
+            ("Hard", "20%", "40%", "40%", "No"),
+            ("Extreme", "20%", "50%", "30%", "Yes")
+        )
+
+        table_height = row_height * 5
+        pygame.draw.rect(self.screen, self.OUTLINE_COLOR,
+                         (table_x - 5, table_y - 5, table_width + 10, table_height + 10), 0)
+        pygame.draw.rect(self.screen, self.LIGHT_BROWN,
+                         (table_x, table_y, table_width, table_height), 0)
+
+        current_x = table_x
+        for i, header in enumerate(headers):
+            cell_rect = pygame.Rect(current_x, table_y, col_width, row_height)
+            pygame.draw.rect(self.screen, self.BROWN, cell_rect, 0)
+            pygame.draw.rect(self.screen, self.OUTLINE_COLOR, cell_rect, 2)
+
+            self.draw_text(header, self.LIGHT_BROWN,
+                           current_x + col_width // 2,
+                           table_y + row_height // 2,
+                           outline_color=self.OUTLINE_COLOR)
+            current_x += col_width
+
+        for row_idx, row_data in enumerate(rows):
+            current_y = table_y + (row_idx + 1) * row_height
+            current_x = table_x
+
+            for col_idx, cell_data in enumerate(row_data):
+                cell_rect = pygame.Rect(current_x, current_y, col_width, row_height)
+                pygame.draw.rect(self.screen, self.DARK_BROWN, cell_rect, 0)
+                pygame.draw.rect(self.screen, self.OUTLINE_COLOR, cell_rect, 1)
+
+                self.draw_text(cell_data, self.LIGHT_BROWN,
+                               current_x + col_width // 2,
+                               current_y + row_height // 2,
+                               outline_color=self.OUTLINE_COLOR)
+                current_x += col_width
+
+        self.draw_section_text('The table describes a chance of creating given number of zombies each turn.',
+                               self.LIGHT_BROWN, self.screen_width // 2,
+                               table_y + 5 * row_height + self.section_font_size,
+                               outline_color=self.OUTLINE_COLOR)
+        self.draw_section_text("'Limit' refers to the limitation of moving the same piece twice in a row.",
+                               self.LIGHT_BROWN, self.screen_width // 2,
+                               table_y + 5 * row_height + 3 * self.section_font_size,
+                               outline_color=self.OUTLINE_COLOR)
+
+        left_offset = -int(self.screen_width * 0.35)
+        go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
+
+        return go_back_btn
