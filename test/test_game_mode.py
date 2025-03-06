@@ -1,7 +1,7 @@
 from unittest import TestCase
 from unittest.mock import patch, MagicMock
 
-from game.game_modes import Gameplay, BlockTheBorder, BlockAndClear, GameMode, Difficulty, TurnResult
+from game.game_modes import Gameplay, BlockTheBorder, BlockAndClear, ClearTheBoard, GameMode, Difficulty, TurnResult
 
 
 class TestGameMode(TestCase):
@@ -82,18 +82,19 @@ class TestGameplay(TestCase):
 
     def test_init_custom_board(self):
         custom_board = [
-            [None, None, None],
-            [None, None, None],
-            [None, None, None],
-            [None, None, None],
-            ['pp0', 'pp1', 'pp2'],
-            ['pr3', 'pK4', 'pr5']
+            [None for _ in range(8)],
+            [None for _ in range(8)],
+            [None for _ in range(8)],
+            [None for _ in range(8)],
+            ['pp' for _ in range(8)],
+            [None for _ in range(8)]
         ]
         game = Gameplay(6, self.difficulty, custom_board)
 
         self.assertEqual(game.board, custom_board)
         self.assertIsNot(game.board, custom_board)
 
+        self.assertEqual(game.pieces_left, 8)
         self.assertIsNot(game.board[0], custom_board[0])
 
     def test_init_game_board_error(self):
@@ -748,3 +749,24 @@ class TestBlockAndClearGameMode(TestCase):
         result = self.game.create_new_zombies(2)
 
         self.assertEqual(result, TurnResult.OK)
+
+
+class TestClearTheBoardGameMode(TestCase):
+    def setUp(self):
+        self.board_height = 10
+        self.difficulty = Difficulty.NORMAL
+        self.game = ClearTheBoard(self.board_height, self.difficulty)
+
+    def test_move_wave_standard(self):
+        self.game.create_new_zombies = MagicMock(return_value=TurnResult.OK)
+        self.game.is_board_clear = MagicMock(return_value=False)
+        result = self.game.move_wave()
+
+        self.assertEqual(result, TurnResult.OK)
+        self.game.create_new_zombies.assert_not_called()
+
+    def test_move_wave_with_clear_board(self):
+        self.game.is_board_clear = MagicMock(return_value=True)
+        result = self.game.move_wave()
+
+        self.assertEqual(result, TurnResult.WIN)

@@ -7,14 +7,18 @@ class GameMode(Enum):
     CAPTURE_THE_MOST = 'Capture The Most'
     BLOCK_THE_BORDER = 'Block The Border'
     BLOCK_AND_CLEAR = 'Block And Clear'
+    CLEAR_THE_BOARD = 'Clear The Board'
 
     def __str__(self):
         return self.value
 
-    def switch(self):
+    def switch(self, include_clear=False):
         game_modes = list(GameMode)
         current_index = game_modes.index(self)
-        next_index = (current_index + 1) % len(game_modes)
+        if include_clear:
+            next_index = (current_index + 1) % 5
+        else:
+            next_index = (current_index + 1) % 4
         return game_modes[next_index]
 
 
@@ -56,24 +60,33 @@ class TurnResult(Enum):
 
 class Gameplay:
     def __init__(self, board_height, difficulty, board=None):
-        self.zombie_spots = set({})
-        if board is None:
-            if board_height < 2:
-                raise ValueError('Board height cannot be lower than 2')
+        self.zombie_spots = set()
+        if board_height < 2 or (board and board_height != len(board)):
+            raise ValueError('Board height cannot be lower than 2 and must match the board\'s actual height')
 
+        if board is None:
             self.board = [
                 [None for _ in range(8)] for _ in range(board_height - 2)
             ]
             self.board.append([f'pp{i}' for i in range(8)])
             self.board.append(['pr8', 'pk9', 'pb10', 'pq11', 'pK12', 'pb13', 'pk14', 'pr15'])
+
+            self.pieces_left = 16
         else:
-            self.board = [[val for val in row] for row in board]
+            self.board = []
+            self.pieces_left = 0
+
+            for row in range(board_height):
+                for col in range(8):
+                    if board[row][col] and board[row][col][0] == 'p':
+                        self.pieces_left += 1
+                self.board.append(board[row].copy())
+
         self.selected_piece = None
         self.last_moved_piece = None
         self.turns = 1
         self.moves = 0
         self.zombies_captured = 0
-        self.pieces_left = 16
         self.castling_combinations = [
             ('pK12', 'pr8'),
             ('pr8', 'pK12'),
@@ -93,6 +106,8 @@ class Gameplay:
             return BlockTheBorder(board_height, difficulty, board)
         elif game_mode == GameMode.BLOCK_AND_CLEAR:
             return BlockAndClear(board_height, difficulty, board)
+        elif game_mode == GameMode.CLEAR_THE_BOARD:
+            return ClearTheBoard(board_height, difficulty, board)
 
     def get_piece_at(self, row, col):
         return self.board[row][col]
@@ -577,7 +592,7 @@ class BlockTheBorder(Gameplay):
 
     def endgame_info(self, won):
         if won:
-            return f"You blocked the border in {self.turns} turns"
+            return f"You blocked the border in {self.moves} moves"
         return "You didn't manage to block the border"
 
 
@@ -616,5 +631,47 @@ class BlockAndClear(BlockTheBorder):
 
     def endgame_info(self, won):
         if won:
-            return f"You cleared the board and blocked the border in {self.turns} turns"
+            return f"You cleared the board and blocked the border in {self.moves} moves"
         return "You didn't manage to block the border and clear the board"
+
+
+class ClearTheBoard(BlockAndClear):
+    def __init__(self, board_height, difficulty, board=None):
+        super().__init__(board_height, difficulty, board)
+        self.game_mode = GameMode.CLEAR_THE_BOARD
+
+    def move_wave(self):
+        if self.is_board_clear():
+            return TurnResult.WIN
+
+        moved_zombies = set()
+        for i in reversed(range(self.board_height)):
+            for j in reversed(range(8)):
+                if self.board[i][j] is None or self.is_piece(i, j) or (i, j) in moved_zombies:
+                    continue
+
+                zombie = self.board[i][j][1]
+                pos = None
+
+                result = TurnResult.OK
+                if zombie == 'w':
+                    result, pos = self.move_walker(i, j)
+                elif zombie == 's':
+                    result, pos = self.move_stomper(i, j)
+                elif zombie == 'e':
+                    result, pos = self.move_exploding(i, j)
+                elif zombie == 'i':
+                    result, pos = self.move_infected(i, j)
+
+                if result == TurnResult.CAPTURED:
+                    self.pieces_left -= 1
+                elif result == TurnResult.CHECKMATE:
+                    return TurnResult.CHECKMATE
+                moved_zombies.add(pos)
+
+        return TurnResult.OK
+
+    def endgame_info(self, won):
+        if won:
+            return f"You cleared the board in {self.moves} moves"
+        return "You didn't manage to clear the board"

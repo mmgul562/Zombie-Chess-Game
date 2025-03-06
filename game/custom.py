@@ -8,7 +8,7 @@ from game.game_modes import GameMode, Difficulty
 
 class CustomGameMode:
     def __init__(self, name='', board_height=8, can_change_gm=True, can_change_difficulty=True,
-                 base_gm=GameMode.BLOCK_THE_BORDER, difficulty=Difficulty.EASY, board=None):
+                 base_gm=GameMode.CLEAR_THE_BOARD, difficulty=Difficulty.EASY, board=None):
         self.name = name
         self.board = board
         self.board_height = board_height

@@ -12,29 +12,30 @@ class GameState(Enum):
     SAVE_CUSTOM = 3
     LOAD_CUSTOM = 4
     HELP_MENU = 5
+    PLAYING = 6
 
-    SAVING_STATUS = 21
-    BOARD_PREVIEW = 22
-    LOADING_FAILURE = 23
+    SAVING_STATUS = 31
 
-    CUSTOM_SETTINGS = 31
-    SETTINGS = 32
+    BOARD_PREVIEW = 41
+    LOADING_FAILURE = 42
+    CUSTOM_SETTINGS = 43
 
-    PLAYING = 41
-    GAME_OVER = 42
-    PAWN_PROMOTION = 43
-    ENDGAME_BOARD = 44
+    SETTINGS = 61
+    GAME_OVER = 62
+    PAWN_PROMOTION = 63
+    ENDGAME_BOARD = 64
 
     HELP_RULES_1 = 51
     HELP_RULES_2 = 52
-    HELP_GAME_MODES = 54
+    HELP_GAME_MODES_1 = 53
+    HELP_GAME_MODES_2 = 54
     HELP_DIFFICULTIES = 55
 
-    HELP_ZOMBIES = 53
-    HELP_WALKER = 531
-    HELP_INFECTED = 532
-    HELP_STOMPER = 533
-    HELP_EXPLOSIVE = 534
+    HELP_ZOMBIES = 56
+    HELP_WALKER = 561
+    HELP_INFECTED = 562
+    HELP_STOMPER = 563
+    HELP_EXPLOSIVE = 564
 
 
 class Game:
@@ -157,7 +158,7 @@ class Game:
                 self.current_state = GameState.CREATE_CUSTOM
             elif buttons['change_gm'].collidepoint(mouse_pos):
                 if not game.can_change_gm:
-                    game.base_gm = game.base_gm.switch()
+                    game.base_gm = game.base_gm.switch(True)
             elif buttons['disable_gm'].collidepoint(mouse_pos):
                 game.can_change_gm = not game.can_change_gm
             elif buttons['change_difficulty'].collidepoint(mouse_pos):
@@ -440,7 +441,7 @@ class Game:
             elif zombies_btn.collidepoint(mouse_pos):
                 self.current_state = GameState.HELP_ZOMBIES
             elif game_modes_btn.collidepoint(mouse_pos):
-                self.current_state = GameState.HELP_GAME_MODES
+                self.current_state = GameState.HELP_GAME_MODES_1
             elif difficulties_btn.collidepoint(mouse_pos):
                 self.current_state = GameState.HELP_DIFFICULTIES
 
@@ -500,12 +501,25 @@ class Game:
             if not area.collidepoint(mouse_pos):
                 self.current_state = GameState.HELP_ZOMBIES
 
-    def handle_help_section_state(self, event):
+    def handle_help_game_modes_state(self, event, page):
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
-            if self.current_state == GameState.HELP_GAME_MODES:
-                back_btn = self.display.help_game_modes_menu()
+            mouse_pos = pygame.mouse.get_pos()
+            if page == 1:
+                back_btn, next_btn = self.display.help_game_modes_1_menu()
+
+                if next_btn.collidepoint(mouse_pos):
+                    self.current_state = GameState.HELP_GAME_MODES_2
+                elif back_btn.collidepoint(mouse_pos):
+                    self.current_state = GameState.HELP_MENU
             else:
-                back_btn = self.display.help_difficulties_menu()
+                back_btn = self.display.help_game_modes_2_menu()
+
+                if back_btn.collidepoint(mouse_pos):
+                    self.current_state = GameState.HELP_GAME_MODES_1
+
+    def handle_help_difficulties_state(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == pygame.BUTTON_LEFT:
+            back_btn = self.display.help_difficulties_menu()
 
             if back_btn.collidepoint(pygame.mouse.get_pos()):
                 self.current_state = GameState.HELP_MENU
@@ -569,9 +583,12 @@ class Game:
             elif self.current_state in (GameState.HELP_WALKER, GameState.HELP_INFECTED,
                                         GameState.HELP_STOMPER, GameState.HELP_EXPLOSIVE):
                 self.handle_help_zombie_state(event)
-            elif self.current_state in (GameState.HELP_GAME_MODES,
-                                        GameState.HELP_DIFFICULTIES):
-                self.handle_help_section_state(event)
+            elif self.current_state == GameState.HELP_GAME_MODES_1:
+                self.handle_help_game_modes_state(event, 1)
+            elif self.current_state == GameState.HELP_GAME_MODES_2:
+                self.handle_help_game_modes_state(event, 2)
+            elif self.current_state == GameState.HELP_DIFFICULTIES:
+                self.handle_help_difficulties_state(event)
         return True
 
     def run(self):
@@ -641,8 +658,10 @@ class Game:
                 self.display.zombie_info_popup('ze', '1 each turn', 'Random',
                                                'Removes ALL adjacent pieces (not diagonal)',
                                                'when captured')
-            elif self.current_state == GameState.HELP_GAME_MODES:
-                self.display.help_game_modes_menu()
+            elif self.current_state == GameState.HELP_GAME_MODES_1:
+                self.display.help_game_modes_1_menu()
+            elif self.current_state == GameState.HELP_GAME_MODES_2:
+                self.display.help_game_modes_2_menu()
             elif self.current_state == GameState.HELP_DIFFICULTIES:
                 self.display.help_difficulties_menu()
             elif self.current_state == GameState.SETTINGS:

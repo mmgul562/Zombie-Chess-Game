@@ -13,7 +13,7 @@ class TestCustomGameMode(TestCase):
         self.assertEqual(game_mode.board_height, 8)
         self.assertTrue(game_mode.can_change_gm)
         self.assertTrue(game_mode.can_change_difficulty)
-        self.assertEqual(game_mode.base_gm, GameMode.BLOCK_THE_BORDER)
+        self.assertEqual(game_mode.base_gm, GameMode.CLEAR_THE_BOARD)
         self.assertEqual(game_mode.difficulty, Difficulty.EASY)
         self.assertIsNone(game_mode.board)
 
@@ -170,7 +170,7 @@ class TestCustomGameModeCreator(TestCase):
         self.assertEqual(data['board_height'], 8)
         self.assertTrue(data['can_change_gm'])
         self.assertTrue(data['can_change_difficulty'])
-        self.assertEqual(data['base_gm'], 'Block The Border')
+        self.assertEqual(data['base_gm'], 'Clear The Board')
         self.assertEqual(data['difficulty'], 'Easy')
 
         self.assertTrue(data['board'][0][0].startswith('pK'))

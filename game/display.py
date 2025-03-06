@@ -399,14 +399,14 @@ class Display:
         fifth_section_y = fourth_section_y + self.section_spacing
 
         change_game_mode_btn, disable_game_mode_btn = self.draw_section_row(
-            'Base Game Mode', game_mode, first_section_y,
+            'Default Game Mode', game_mode, first_section_y,
             [('>', None, can_change_gm), ('X', None, False)],
             disabled=can_change_gm
         )
         self.draw_separator(first_section_y + self.element_spacing // 2)
 
         change_difficulty_btn, disable_difficulty_btn = self.draw_section_row(
-            'Difficulty', difficulty, second_section_y,
+            'Default Difficulty', difficulty, second_section_y,
             [('>', None, can_change_difficulty), ('X', None, False)],
             disabled=can_change_difficulty
         )
@@ -866,9 +866,9 @@ class Display:
 
         return panel_rect
 
-    def help_game_modes_menu(self):
+    def help_game_modes_1_menu(self):
         self.screen.blit(self.background, (0, 0))
-        self.draw_main_text('Game Modes', self.LIGHT_BROWN, self.OUTLINE_COLOR)
+        self.draw_main_text('Game Modes 1/2', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         desc_spacing = self.section_font_size * 1.5
         start_x = self.screen_width // 2
@@ -878,11 +878,11 @@ class Display:
         block_clear_y = block_y + self.section_spacing + desc_spacing
 
         self.draw_section_text('Survive The Longest', self.LIGHT_BROWN, start_x, survive_y)
-        self.draw_text('No win condition. The longer the game, the higher the score', self.LIGHT_BROWN,
+        self.draw_text('No win condition - the longer the game, the higher the score', self.LIGHT_BROWN,
                        start_x, survive_y + desc_spacing, outline_color=self.OUTLINE_COLOR)
 
         self.draw_section_text('Capture The Most', self.LIGHT_BROWN, start_x, capture_y)
-        self.draw_text('No win condition. The more you capture, the higher the score', self.LIGHT_BROWN,
+        self.draw_text('No win condition - the more you capture, the higher the score', self.LIGHT_BROWN,
                        start_x, capture_y + desc_spacing, outline_color=self.OUTLINE_COLOR)
 
         self.draw_section_text('Block The Border', self.LIGHT_BROWN, start_x, block_y)
@@ -892,6 +892,28 @@ class Display:
         self.draw_section_text('Block And Clear', self.LIGHT_BROWN, start_x, block_clear_y)
         self.draw_text('Block the upper rank (row) and clear the board from zombies to win', self.LIGHT_BROWN,
                        start_x, block_clear_y + desc_spacing, outline_color=self.OUTLINE_COLOR)
+
+        left_offset = -int(self.screen_width * 0.35)
+        right_offset = int(self.screen_width * 0.35)
+
+        go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
+        next_btn = self.draw_button('Next', self.bottom_margin, x_offset=right_offset)
+
+        return go_back_btn, next_btn
+
+    def help_game_modes_2_menu(self):
+        self.screen.blit(self.background, (0, 0))
+        self.draw_main_text('Game Modes 2/2', self.LIGHT_BROWN, self.OUTLINE_COLOR)
+
+        start_x = self.screen_width // 2
+
+        self.draw_section_text('Clear The Board', self.LIGHT_BROWN, start_x, self.content_start_y)
+        self.draw_text('Does not create new zombies - clear the board from zombies to win',
+                       self.LIGHT_BROWN, start_x, self.content_start_y + self.element_spacing,
+                       outline_color=self.OUTLINE_COLOR)
+        self.draw_text('Special game mode for custom modes only.', self.LIGHT_BROWN,
+                       start_x, self.content_start_y + 2 * self.element_spacing + self.regular_font_size,
+                       outline_color=self.OUTLINE_COLOR)
 
         left_offset = -int(self.screen_width * 0.35)
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
