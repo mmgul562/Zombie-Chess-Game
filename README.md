@@ -67,3 +67,5 @@ Help / Game modes
 
 Help / Difficulties
 ![help difficulties](https://github.com/user-attachments/assets/97dda7d0-cc99-4020-9f6b-db17d57d3ef6)
+
+Chess piece and zombie icons were made by flaticon.com (or based on them)
