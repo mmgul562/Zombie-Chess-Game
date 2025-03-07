@@ -102,7 +102,9 @@ class Display:
         text_rect = text_surface.get_rect(center=(x, y_pos))
         self.screen.blit(text_surface, text_rect)
 
-    def draw_section_text(self, text, color, x, y, center=True, outline_color=None, outline_width=3):
+    def draw_text(self, text, color, x, y, font=None, outline_width=2, outline_color=None, center=True):
+        if font is None:
+            font = self.font
         if outline_color is None:
             outline_color = self.OUTLINE_COLOR
 
@@ -110,34 +112,14 @@ class Display:
             for offset_y in range(-outline_width, outline_width + 1):
                 if offset_x == 0 and offset_y == 0:
                     continue
-                outline_surface = self.section_font.render(text, True, outline_color)
+                outline_surface = font.render(text, True, outline_color)
                 if center:
                     outline_rect = outline_surface.get_rect(center=(x + offset_x, y + offset_y))
                 else:
                     outline_rect = outline_surface.get_rect(x=x + offset_x, y=y + offset_y)
                 self.screen.blit(outline_surface, outline_rect)
 
-        text_surface = self.section_font.render(text, True, color)
-        if center:
-            text_rect = text_surface.get_rect(center=(x, y))
-        else:
-            text_rect = text_surface.get_rect(x=x, y=y)
-        self.screen.blit(text_surface, text_rect)
-
-    def draw_text(self, text, color, x, y, center=True, outline_color=None, outline_width=2):
-        if outline_color:
-            for offset_x in range(-outline_width, outline_width + 1):
-                for offset_y in range(-outline_width, outline_width + 1):
-                    if offset_x == 0 and offset_y == 0:
-                        continue
-                    outline_surface = self.font.render(text, True, outline_color)
-                    if center:
-                        outline_rect = outline_surface.get_rect(center=(x + offset_x, y + offset_y))
-                    else:
-                        outline_rect = outline_surface.get_rect(x=x + offset_x, y=y + offset_y)
-                    self.screen.blit(outline_surface, outline_rect)
-
-        text_surface = self.font.render(text, True, color)
+        text_surface = font.render(text, True, color)
         if center:
             text_rect = text_surface.get_rect(center=(x, y))
         else:
@@ -146,7 +128,8 @@ class Display:
 
     def draw_section_row(self, section_name, description, y_pos, buttons_info, disabled=False):
         text_color = self.LIGHT_BROWN if not disabled else self.GREY
-        self.draw_section_text(section_name, text_color, int(self.screen_width * 0.2), y_pos)
+        self.draw_text(section_name, text_color, int(self.screen_width * 0.2), y_pos, self.section_font,
+                       outline_width=3)
 
         middle_section_x = int(self.screen_width * 0.5)
         self.draw_text(str(description), text_color, middle_section_x, y_pos, outline_color=self.OUTLINE_COLOR)
@@ -246,7 +229,7 @@ class Display:
         fourth_button_y = third_button_y + self.button_height + self.element_spacing
 
         play_btn = self.draw_button('Play', first_button_y)
-        custom_btn = self.draw_button('Custom Modes', second_button_y)
+        custom_btn = self.draw_button('Custom Games', second_button_y)
         help_btn = self.draw_button('Help', third_button_y)
         quit_btn = self.draw_button('Quit', fourth_button_y)
 
@@ -254,13 +237,13 @@ class Display:
 
     def custom_menu(self):
         self.screen.blit(self.background, (0, 0))
-        self.draw_main_text('Custom Modes', self.LIGHT_BROWN, self.OUTLINE_COLOR)
+        self.draw_main_text('Custom Games', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         first_button_y = self.content_start_y + self.element_spacing
         second_button_y = first_button_y + self.button_height + self.element_spacing
 
-        create_btn = self.draw_button('Create New Mode', first_button_y)
-        load_btn = self.draw_button('Load New Mode', second_button_y)
+        create_btn = self.draw_button('Create Game', first_button_y)
+        load_btn = self.draw_button('Load Game', second_button_y)
 
         left_offset = -int(self.screen_width * 0.35)
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
@@ -308,8 +291,9 @@ class Display:
 
         pygame.draw.rect(self.screen, self.SEPARATOR_COLOR,
                          (piece_selector_x, board_start_y, piece_selector_width, board_height_px))
-        self.draw_section_text('Available Pieces', self.LIGHT_BROWN,
-                               piece_selector_x + piece_selector_width // 2, board_start_y - 40)
+        self.draw_text('Available Pieces', self.LIGHT_BROWN,
+                       piece_selector_x + piece_selector_width // 2, board_start_y - 40,
+                       self.section_font, outline_width=3)
 
         pieces = ('pK', 'pq', 'pr', 'pb', 'pk', 'pp')
         zombies = ('zw', 'zs', 'ze', 'zi')
@@ -412,10 +396,10 @@ class Display:
         )
         self.draw_separator(second_section_y + self.element_spacing // 2)
 
-        self.draw_section_text('Specifying a setting here will disallow any changes to that setting later',
-                               self.LIGHT_BROWN, self.screen_width // 2, third_section_y)
+        self.draw_text('Disabling default setting allows users to change it before the game',
+                       self.LIGHT_BROWN, self.screen_width // 2, third_section_y,
+                       self.section_font, outline_width=3)
 
-        # name
         input_color = self.DARK_BROWN
         if not name:
             name = 'Name'
@@ -459,7 +443,7 @@ class Display:
 
     def load_custom_menu(self, game_modes, selected, scroll_offset):
         self.screen.blit(self.background, (0, 0))
-        self.draw_main_text('Load Custom Mode', self.LIGHT_BROWN, self.OUTLINE_COLOR)
+        self.draw_main_text('Load Custom Game', self.LIGHT_BROWN, self.OUTLINE_COLOR)
 
         panel_width = self.screen_width // 2 - 50 * self.scale_factor
         left_panel_x = 50
@@ -476,8 +460,10 @@ class Display:
         sidebar_x = left_panel_x + panel_width + 10
         sidebar_y = list_start_y - 30 * self.scale_factor
 
-        self.draw_section_text('Game Modes', self.LIGHT_BROWN, left_panel_x + item_width // 2, self.content_start_y)
-        self.draw_section_text('Details', self.LIGHT_BROWN, right_panel_x + panel_width // 2, self.content_start_y)
+        self.draw_text('Games', self.LIGHT_BROWN, left_panel_x + item_width // 2, self.content_start_y,
+                       self.section_font, outline_width=3)
+        self.draw_text('Details', self.LIGHT_BROWN, right_panel_x + panel_width // 2, self.content_start_y,
+                       self.section_font, outline_width=3)
 
         total_items = len(game_modes)
         max_scroll = max(0, total_items - max_visible_items)
@@ -605,7 +591,8 @@ class Display:
         stats_y_gap = self.screen_height // (len(game_stats) + 2)
 
         for i, (stat, val) in enumerate(game_stats.items()):
-            self.draw_section_text(f'{stat}: {val}', self.LIGHT_BROWN, stats_x_padding, (i + 1) * stats_y_gap)
+            self.draw_text(f'{stat}: {val}', self.LIGHT_BROWN, stats_x_padding, (i + 1) * stats_y_gap,
+                           self.section_font, outline_width=3)
 
         can_split = board_height > 9
         display_whole_board = displayed_board_part == 0
@@ -735,8 +722,9 @@ class Display:
 
         section_x = self.screen_width // 2
 
-        self.draw_section_text('The Player can make all traditional chess moves', self.LIGHT_BROWN,
-                               section_x, self.content_start_y + self.element_spacing)
+        self.draw_text('The Player can make all traditional chess moves', self.LIGHT_BROWN,
+                       section_x, self.content_start_y + self.element_spacing,
+                       self.section_font, outline_width=3)
 
         board_height = (self.bottom_margin - self.content_start_y) // 2
         square_size = board_height // 4
@@ -770,8 +758,9 @@ class Display:
 
         section_x = self.screen_width // 2
 
-        self.draw_section_text('The game ends when the King gets captured or turned', self.LIGHT_BROWN,
-                               section_x, self.content_start_y + self.element_spacing)
+        self.draw_text('The game ends when the King gets captured or turned', self.LIGHT_BROWN,
+                       section_x, self.content_start_y + self.element_spacing,
+                       self.section_font, outline_width=3)
 
         board_height = (self.bottom_margin - self.content_start_y) // 2
         square_size = board_height // 4
@@ -808,24 +797,24 @@ class Display:
         stomper_x = infected_x + 2 * img_space
         explosive_x = stomper_x + 2 * img_space
 
-        self.draw_section_text('Each turn new zombies will be created and all remaining moved', self.LIGHT_BROWN,
-                               self.screen_width // 2, self.content_start_y)
+        self.draw_text('Each turn new zombies will be created and all remaining moved', self.LIGHT_BROWN,
+                       self.screen_width // 2, self.content_start_y, self.section_font, 3)
 
         walker_btn = self.draw_button('Walker', name_y, x=walker_x, width=img_space)
         self.screen.blit(pygame.transform.scale(self.piece_images['zw'], (img_space, img_space)), (walker_x, img_y))
-        self.draw_section_text('50%', self.LIGHT_BROWN, walker_x + img_space // 2, info_y)
+        self.draw_text('50%', self.LIGHT_BROWN, walker_x + img_space // 2, info_y, self.section_font, 3)
 
         infected_btn = self.draw_button('Infected', name_y, x=infected_x, width=img_space)
         self.screen.blit(pygame.transform.scale(self.piece_images['zi'], (img_space, img_space)), (infected_x, img_y))
-        self.draw_section_text('30%', self.LIGHT_BROWN, infected_x + img_space // 2, info_y)
+        self.draw_text('30%', self.LIGHT_BROWN, infected_x + img_space // 2, info_y, self.section_font, 3)
 
         stomper_btn = self.draw_button('Stomper', name_y, x=stomper_x, width=img_space)
         self.screen.blit(pygame.transform.scale(self.piece_images['zs'], (img_space, img_space)), (stomper_x, img_y))
-        self.draw_section_text('10%', self.LIGHT_BROWN, stomper_x + img_space // 2, info_y)
+        self.draw_text('10%', self.LIGHT_BROWN, stomper_x + img_space // 2, info_y, self.section_font, 3)
 
         explosive_btn = self.draw_button('Explosive', name_y, x=explosive_x, width=img_space)
         self.screen.blit(pygame.transform.scale(self.piece_images['ze'], (img_space, img_space)), (explosive_x, img_y))
-        self.draw_section_text('10%', self.LIGHT_BROWN, explosive_x + img_space // 2, info_y)
+        self.draw_text('10%', self.LIGHT_BROWN, explosive_x + img_space // 2, info_y, self.section_font, 3)
 
         left_offset = -int(self.screen_width * 0.35)
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)
@@ -850,15 +839,15 @@ class Display:
         self.screen.blit(pygame.transform.scale(self.piece_images[zombie], (img_side, img_side)),
                          ((self.screen_width - img_side) // 2, self.title_y))
 
-        self.draw_section_text('Movement', self.LIGHT_BROWN, info_x, mvm_y)
+        self.draw_text('Movement', self.LIGHT_BROWN, info_x, mvm_y, self.section_font, 3)
         self.draw_text(movement, self.LIGHT_BROWN, info_x, mvm_y + desc_spacing,
                        outline_color=self.OUTLINE_COLOR)
 
-        self.draw_section_text('Order of Movement', self.LIGHT_BROWN, info_x, order_y)
+        self.draw_text('Order of Movement', self.LIGHT_BROWN, info_x, order_y, self.section_font, 3)
         self.draw_text(order, self.LIGHT_BROWN, info_x, order_y + desc_spacing,
                        outline_color=self.OUTLINE_COLOR)
 
-        self.draw_section_text('Special Behaviour', self.LIGHT_BROWN, info_x, bhvr_y)
+        self.draw_text('Special Behaviour', self.LIGHT_BROWN, info_x, bhvr_y, self.section_font, 3)
         line_spacing = bhvr_y
         for line in behaviour:
             line_spacing += desc_spacing
@@ -877,19 +866,19 @@ class Display:
         block_y = capture_y + self.section_spacing + desc_spacing
         block_clear_y = block_y + self.section_spacing + desc_spacing
 
-        self.draw_section_text('Survive The Longest', self.LIGHT_BROWN, start_x, survive_y)
+        self.draw_text('Survive The Longest', self.LIGHT_BROWN, start_x, survive_y, self.section_font, 3)
         self.draw_text('No win condition - the longer the game, the higher the score', self.LIGHT_BROWN,
                        start_x, survive_y + desc_spacing, outline_color=self.OUTLINE_COLOR)
 
-        self.draw_section_text('Capture The Most', self.LIGHT_BROWN, start_x, capture_y)
+        self.draw_text('Capture The Most', self.LIGHT_BROWN, start_x, capture_y, self.section_font, 3)
         self.draw_text('No win condition - the more you capture, the higher the score', self.LIGHT_BROWN,
                        start_x, capture_y + desc_spacing, outline_color=self.OUTLINE_COLOR)
 
-        self.draw_section_text('Block The Border', self.LIGHT_BROWN, start_x, block_y)
+        self.draw_text('Block The Border', self.LIGHT_BROWN, start_x, block_y, self.section_font, 3)
         self.draw_text('Block the upper rank (row) to win', self.LIGHT_BROWN,
                        start_x, block_y + desc_spacing, outline_color=self.OUTLINE_COLOR)
 
-        self.draw_section_text('Block And Clear', self.LIGHT_BROWN, start_x, block_clear_y)
+        self.draw_text('Block And Clear', self.LIGHT_BROWN, start_x, block_clear_y, self.section_font, 3)
         self.draw_text('Block the upper rank (row) and clear the board from zombies to win', self.LIGHT_BROWN,
                        start_x, block_clear_y + desc_spacing, outline_color=self.OUTLINE_COLOR)
 
@@ -907,7 +896,7 @@ class Display:
 
         start_x = self.screen_width // 2
 
-        self.draw_section_text('Clear The Board', self.LIGHT_BROWN, start_x, self.content_start_y)
+        self.draw_text('Clear The Board', self.LIGHT_BROWN, start_x, self.content_start_y, self.section_font, 3)
         self.draw_text('Does not create new zombies - clear the board from zombies to win',
                        self.LIGHT_BROWN, start_x, self.content_start_y + self.element_spacing,
                        outline_color=self.OUTLINE_COLOR)
@@ -972,14 +961,14 @@ class Display:
                                outline_color=self.OUTLINE_COLOR)
                 current_x += col_width
 
-        self.draw_section_text('The table describes a chance of creating given number of zombies each turn.',
-                               self.LIGHT_BROWN, self.screen_width // 2,
-                               table_y + 5 * row_height + self.section_font_size,
-                               outline_color=self.OUTLINE_COLOR)
-        self.draw_section_text("'Limit' refers to the limitation of moving the same piece twice in a row.",
-                               self.LIGHT_BROWN, self.screen_width // 2,
-                               table_y + 5 * row_height + 3 * self.section_font_size,
-                               outline_color=self.OUTLINE_COLOR)
+        self.draw_text('The table describes a chance of creating given number of zombies each turn.',
+                       self.LIGHT_BROWN, self.screen_width // 2,
+                       table_y + 5 * row_height + self.section_font_size,
+                       self.section_font, 3)
+        self.draw_text("'Limit' refers to the limitation of moving the same piece twice in a row.",
+                       self.LIGHT_BROWN, self.screen_width // 2,
+                       table_y + 5 * row_height + 3 * self.section_font_size,
+                       self.section_font, 3)
 
         left_offset = -int(self.screen_width * 0.35)
         go_back_btn = self.draw_button('Go Back', self.bottom_margin, x_offset=left_offset)

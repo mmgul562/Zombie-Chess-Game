@@ -43,8 +43,8 @@ class Game:
         pygame.init()
         self.won = False
         self.gameplay = Gameplay.init_game_mode(8, Difficulty.EASY, GameMode.BLOCK_THE_BORDER)
-        self.custom_creator = CustomGameModeCreator()
-        self.custom_loader = CustomGameModeLoader()
+        self.custom_creator = CustomGameCreator()
+        self.custom_loader = CustomGameLoader()
 
         self._scroll_offset = 0
         self._max_scroll = 0

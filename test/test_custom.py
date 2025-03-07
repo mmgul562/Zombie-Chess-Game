@@ -2,13 +2,13 @@ import json
 from unittest import TestCase
 from unittest.mock import patch, mock_open, MagicMock
 
-from game.custom import CustomGameMode, CustomGameModeLoader, CustomGameModeCreator
+from game.custom import CustomGame, CustomGameLoader, CustomGameCreator
 from game.game_modes import GameMode, Difficulty
 
 
-class TestCustomGameMode(TestCase):
+class TestCustomGame(TestCase):
     def test_init_default_values(self):
-        game_mode = CustomGameMode()
+        game_mode = CustomGame()
         self.assertEqual(game_mode.name, '')
         self.assertEqual(game_mode.board_height, 8)
         self.assertTrue(game_mode.can_change_gm)
@@ -19,7 +19,7 @@ class TestCustomGameMode(TestCase):
 
     def test_init_custom_values(self):
         board = [[None for _ in range(8)] for _ in range(10)]
-        game_mode = CustomGameMode(
+        game_mode = CustomGame(
             name='Custom Mode',
             board_height=10,
             can_change_gm=False,
@@ -37,12 +37,12 @@ class TestCustomGameMode(TestCase):
         self.assertEqual(game_mode.board, board)
 
 
-class TestCustomGameModeCreator(TestCase):
+class TestCustomGameCreator(TestCase):
     def setUp(self):
-        self.creator = CustomGameModeCreator()
+        self.creator = CustomGameCreator()
 
     def test_init(self):
-        self.assertIsInstance(self.creator.game, CustomGameMode)
+        self.assertIsInstance(self.creator.game, CustomGame)
         self.assertEqual(len(self.creator.game.board), 8)
         self.assertEqual(len(self.creator.game.board[0]), 8)
         self.assertFalse(self.creator.is_name_ok)
@@ -182,9 +182,9 @@ class TestCustomGameModeCreator(TestCase):
         self.assertEqual(self.creator.error_msg, 'Test exception')
 
 
-class TestCustomGameModeLoader(TestCase):
+class TestCustomGameLoader(TestCase):
     def setUp(self):
-        self.loader = CustomGameModeLoader()
+        self.loader = CustomGameLoader()
 
     def test_init(self):
         self.assertEqual(self.loader.game_modes, {})
@@ -192,7 +192,7 @@ class TestCustomGameModeLoader(TestCase):
         self.assertIsNone(self.loader.error_msg)
 
     def test_reset(self):
-        self.loader.selected_gm = ('test', CustomGameMode())
+        self.loader.selected_gm = ('test', CustomGame())
         self.loader.error_msg = 'Some error'
 
         self.loader.reset()
@@ -201,7 +201,7 @@ class TestCustomGameModeLoader(TestCase):
         self.assertIsNone(self.loader.error_msg)
 
     def test_unselect_select_gm(self):
-        gm = CustomGameMode()
+        gm = CustomGame()
         self.loader.game_modes = {'test': gm}
 
         self.loader.select_gm('test')

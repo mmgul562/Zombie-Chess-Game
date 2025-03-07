@@ -6,7 +6,7 @@ import os
 from game.game_modes import GameMode, Difficulty
 
 
-class CustomGameMode:
+class CustomGame:
     def __init__(self, name='', board_height=8, can_change_gm=True, can_change_difficulty=True,
                  base_gm=GameMode.CLEAR_THE_BOARD, difficulty=Difficulty.EASY, board=None):
         self.name = name
@@ -18,9 +18,9 @@ class CustomGameMode:
         self.difficulty = difficulty
 
 
-class CustomGameModeCreator:
+class CustomGameCreator:
     def __init__(self):
-        self.game = CustomGameMode(board=[[None for _ in range(8)] for _ in range(8)])
+        self.game = CustomGame(board=[[None for _ in range(8)] for _ in range(8)])
         self.is_name_ok = False
         self.has_king = False
         self.input_focused = False
@@ -111,7 +111,7 @@ class CustomGameModeCreator:
             self.error_msg = str(e)
 
 
-class CustomGameModeLoader:
+class CustomGameLoader:
     def __init__(self):
         self.game_modes = {}
         self.selected_gm = None
@@ -187,8 +187,8 @@ class CustomGameModeLoader:
         else:
             name = gm_json['name']
 
-        return CustomGameMode(name, board_height, can_change_gm, can_change_difficulty,
-                              GameMode(base_gm), Difficulty[difficulty.upper()], board)
+        return CustomGame(name, board_height, can_change_gm, can_change_difficulty,
+                          GameMode(base_gm), Difficulty[difficulty.upper()], board)
 
     def get_all(self):
         try:
